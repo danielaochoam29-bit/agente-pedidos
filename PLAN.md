@@ -91,7 +91,7 @@ Ojo: la columna `PE` del detalle guarda el **KEY** del pedido (`PE1979a66b85b8`)
 3. **Precios.** `PRODUCTOS` tiene 4 precios por referencia: cliente final (1.090), mayor a 100 und (980), distribuidor (800) y muestras. El agente aceptará el precio del mensaje **solo si coincide con alguno de la lista**; si no, avisa ("B01T a $1.000 no está en la lista: 1.090 / 980 / 800") y no crea el pedido hasta que el asesor confirme.
 4. **Clientes duplicados.** Hay NIT repetidos y celulares repetidos en `CLIENTES` (y valores basura como `.` o `123456789`). Regla propuesta: buscar por NIT normalizado (solo dígitos: `93'287.888` → `93287888`); si no hay, por celular; si hay más de uno, el bot pregunta cuál. Nombres siempre en MAYÚSCULAS.
 5. **Consecutivo PE.** Hoy va en PE2009. El agente calcula `MAX(NUMERO CONSECUTIVO) + 1` justo antes de escribir y reintenta si otro pedido entró en ese segundo. Riesgo bajo, pero existe (ver §8).
-6. **El repo está vacío.** Mencionas que subiste cómo se registran los pedidos de la página web, pero en GitHub el repositorio `agente-pedidos` no tiene commits. No bloquea el plan: vi directamente las hojas `PEDIDOS PAGINA WEB` / `DETALLES PEDIDOS PAGINA WEB` (pedidos `PE001-W`… `PE014-W`) y el canal `#pedidos-pagina-web` donde tu página ya publica los pedidos con un formato fijo. Si ese código existe, súbelo o pásamelo: me sirve para reutilizar la conexión con la hoja.
+6. **Documentos de la página web.** Ya están en `main` (`como-se-registra-un-pedido-web.md` y `base-de-datos-sheets.md`) y revisé también el código real en el repo `pagina-web-as-coffee-bags`. Lo que cambia por eso está en §9.
 7. **⚠️ Seguridad: la hoja es pública.** Pude descargar todas las pestañas como CSV **sin ninguna credencial**, solo con el enlace. Eso significa que "cualquiera con el enlace puede ver". Ahí están los datos de 769 clientes y la pestaña `USUARIOS` tiene contraseñas en texto plano. Recomiendo cambiar el acceso a "Restringido" (Compartir → Acceso general → Restringido) y compartir solo con las cuentas que la usan. El agente no necesita que sea pública: usará su propia cuenta de servicio.
 
 ---
@@ -292,7 +292,97 @@ Marca cada una con tu respuesta (o "OK" si el valor propuesto sirve):
 
 ---
 
-## 9. Qué pasa cuando apruebes
+## 9. Revisión del plan tras leer tus dos documentos (2026-10-03, segunda vuelta)
+
+Leí `como-se-registra-un-pedido-web.md` y `base-de-datos-sheets.md`, y además el código
+real de la página en el repo `pagina-web-as-coffee-bags` (rama
+`claude/as-coffee-bags-astro-hx5i7b`: `src/lib/pedidos.server.mjs`, `scripts/lib/google.mjs`,
+`src/lib/slack.server.mjs`, `notas/avisos-de-slack.md`).
+
+**Veredicto: el plan se mantiene. Cambian 5 cosas, y todas lo hacen más barato o más rápido.**
+
+### 9.1 Lo que los documentos confirman del plan (sin cambios)
+
+| Punto del plan | Lo que dicen los documentos / el código |
+|---|---|
+| Escribir directo en la hoja con cuenta de servicio, sin API de AppSheet | Es exactamente lo que hace la página. Funciona y AppSheet lo lee |
+| Cliente: buscar por NIT y crear **antes** del pedido | Igual. "Al revés, AppSheet vería el pedido como inválido" |
+| `DETALLES.PE` guarda la KEY completa del pedido | Confirmado: "si se escribe el corto, AppSheet no encuentra el pedido" |
+| FOTO, DESCRIPCION, EMPAQUE y COSTO se copian de `PRODUCTOS` | Confirmado |
+| Los precios no se toman del mensaje, se verifican contra `PRODUCTOS` | Confirmado: "los precios nunca se toman del navegador" |
+| Leer columnas por nombre, no por posición | Confirmado; la página lo hace igual |
+| Defaults `EN CONSTRUCCIÓN` + `ESTADO PAGO = PENDIENTE` | Son los que usa la página |
+| Avisar en Slack si algo falla, nunca perder el pedido | Misma filosofía ("regla de oro") |
+
+### 9.2 Los 5 ajustes
+
+**1. Reutilizar el código de la página en vez de escribirlo de cero (ahorra 1 día).**
+Ya existen y están probados (45 pruebas contra un Google simulado):
+- `scripts/lib/google.mjs`: conexión a Google Sheets con cuenta de servicio, sin librerías pesadas.
+- `pedidos.server.mjs`: lectura de `PRODUCTOS`, búsqueda/creación de cliente, armado de filas
+  en el orden de la cabecera, anexado y el truco del marcador `PENDIENTE-xxxxxx`.
+- `slack.server.mjs`: envío de mensajes a Slack.
+
+Copio esos módulos a este repo y solo agrego lo nuevo: leer el mensaje de Slack (IA),
+resolver ciudad → código DANE, numeración de `PEDIDOS` y las respuestas en el hilo.
+
+**2. La cuenta de servicio de Google ya existe → Fase 0 se acorta.**
+No hay que crear nada en Google Cloud: la hoja ya está compartida con esa cuenta como editor.
+Solo necesito el correo de la cuenta (`GOOGLE_SERVICE_ACCOUNT_EMAIL`) y su clave privada.
+⚠️ El README de la página dice como pendiente: *"Rotar la clave de la cuenta de servicio
+(quedó escrita en un chat)"*. Hay que hacerlo ya: generar una clave nueva en Google Cloud,
+ponerla en Wix (`npx wix env set …` + `npm run release`) y en el bot, y borrar la vieja.
+Te guío; son 10 minutos.
+
+**3. El alojamiento: la página vive en Wix, no en Vercel.**
+Yo asumí Vercel porque tienes el conector. La página se publica con `wix release` y corre en el
+servidor de Wix. Para el bot sigo recomendando un servicio **aparte** (Vercel o Google Cloud
+Run), por tres razones: (a) Slack exige un endpoint público que responda en menos de 3 segundos
+y procese después, cosa que el servidor de Wix no garantiza; (b) así un cambio en el bot no
+obliga a republicar la tienda; (c) el bot necesita Node completo (no el entorno "worker" de
+Wix). El costo sigue siendo $0 en Cloud Run. Nada cambia en el código de la página.
+
+**4. Regla de precios: adoptar la de la página, que es más exacta que la del plan.**
+El plan decía "aceptar el precio si coincide con alguno de la lista". La página calcula el
+precio que **corresponde**: menos de 100 unidades de una referencia → `PRECIO CLIENTE FINAL`;
+100 o más → `PRECIO CLIENTE FINAL MAYOR 100 UND`; `TIPO CLIENTE = DISTRIBUIDOR` →
+`PRECIO DISTRIBUIDOR`. El bot hará lo mismo: si el precio del mensaje coincide con el que
+corresponde, crea; si no, avisa ("B01T × 150 und debería ir a $980, no a $1.090") y espera
+confirmación del asesor. Con PE1979 (25 und a $1.090) pasa limpio.
+
+**5. Numeración del pedido: la página usa el número de fila; en `PEDIDOS` eso no sirve.**
+La página numera `PE057-W` con la fila donde quedó (es a prueba de dos pedidos simultáneos).
+En `PEDIDOS` hay 1.486 filas pero el último es PE2009 (se han borrado filas), así que ahí el
+número **tiene** que salir de `NUMERO CONSECUTIVO`. Lo que haré: anexar la fila con el marcador
+`PENDIENTE-xxxxxx` (anexar es atómico), leer el mayor consecutivo de las filas que quedaron
+**arriba** de la mía y sumar 1, y reemplazar el marcador. Dos pedidos del bot nunca chocan.
+Queda un riesgo pequeño si alguien crea un pedido en AppSheet en el mismo segundo; lo
+detecto releyendo y, si chocó, corrijo el número (ver pregunta 15).
+
+### 9.3 Dos diferencias entre "pedido web" y "pedido de Slack" que debes decidir
+
+Las agrego a la tabla de §6 como preguntas 14 a 16:
+
+| # | Pregunta | Propuesta |
+|---|---|---|
+| 14 | **Inventario.** La página rechaza el pedido si `INVENTARIO ACTUAL − 300` no alcanza. ¿El bot también rechaza, o solo avisa? | Solo avisa ("⚠️ B02P: quedan 1.522, el pedido lleva 25; reserva de 300") y crea igual, porque los asesores sí pueden preventa. Tú decides |
+| 15 | **Dónde escribir.** (A) En `PEDIDOS` con consecutivo normal, como PE1979. (B) En una pestaña nueva `PEDIDOS SLACK` + `DETALLES PEDIDOS SLACK`, numerada `PE0xx-S` como la web, y el equipo la trabaja desde AppSheet igual que la de la web | **A**, que es lo que pediste. B es más aislado y elimina el riesgo de choque de consecutivo, pero obliga a agregar dos tablas a la app |
+| 16 | **Recargo contraentrega 7 %.** La web lo calcula y lo anota en `NOTAS`. ¿Aplica a los pedidos de WhatsApp/Slack? | No, salvo que el asesor escriba "contraentrega"; en ese caso copio la misma nota que la web |
+
+### 9.4 Fase 0 revisada (queda más corta)
+
+1. Slack: crear la app (o reutilizar la "AS Coffee Bags" de los avisos, agregándole permisos de bot
+   y *Event Subscriptions*). Me pasas Bot Token y Signing Secret.
+2. Google: **rotar** la clave de la cuenta de servicio existente y pasarme correo + clave nueva.
+3. Claude: API key.
+4. Canal de Slack + mapa asesor → VENDEDOR.
+5. Respuestas de §6 (preguntas 1 a 16).
+
+Lo demás (§3 flujo, §5 fases, §7 costos, §8 riesgos) sigue igual.
+
+---
+
+## 10. Qué pasa cuando apruebes
 
 1. Me respondes las preguntas de §6 y las dudas del checklist (Fase 0).
 2. Te envío la guía corta para crear la app de Slack y la cuenta de servicio (son clics, no código).
