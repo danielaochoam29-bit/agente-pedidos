@@ -15,7 +15,7 @@ AppSheet y dispara la acción *Generar PDF*.
 |---|---|
 | 1. Núcleo sin Slack: lector, validaciones, filas, pruebas | ✅ hecho (25 pruebas, `npm test`) |
 | 2. Bot de Slack (hilos, confirmación ✅, escritura en AppSheet por API) | ✅ programado y probado en simulación (32 pruebas) |
-| 3. Publicar en Vercel y primera prueba real | pendiente: `GUIA-CONFIGURACION.md` bloque 5 |
+| 3. Publicado en Vercel (`agente-pedidos-dani-9731.vercel.app`) | ✅ hecho; falta registrar la URL en Slack y la primera prueba real |
 
 ## Cómo está hecho
 

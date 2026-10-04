@@ -162,40 +162,42 @@ Mapa de asesores (ya definido):
 
 ---
 
-## Bloque 5 · Publicar el bot en Vercel (10 minutos, solo clics)
+## Bloque 5 · Publicar el bot en Vercel — HECHO (2026-10-04)
 
-El bot ya está programado en este repositorio (rama `claude/eager-newton-ws5vlo`). Vercel lo
-publica directamente desde GitHub.
+Ya quedó creado el proyecto `agente-pedidos` en tu cuenta de Vercel, conectado al repositorio
+de GitHub y con las variables de entorno cargadas (`MODO_ENSAYO=1`). URL del bot:
 
-1. Entra a <https://vercel.com/new> con tu cuenta de Vercel.
-2. **Import Git Repository** → busca `danielaochoam29-bit/agente-pedidos` → **Import**.
-   Si no aparece, pulsa *Adjust GitHub App Permissions* y dale acceso a ese repositorio.
-3. En la pantalla de configuración, **no cambies** Framework ni comandos (Vercel detecta que es
-   un proyecto Node sin build).
-4. Abre **Environment Variables** y agrega una por una (nombre → valor):
+    https://agente-pedidos-dani-9731.vercel.app/api/slack/events
 
-   | Nombre | Valor |
-   |---|---|
-   | `APPSHEET_APP_ID` | el App Id de AppSheet |
-   | `APPSHEET_ACCESS_KEY` | la Application Access Key |
-   | `SLACK_BOT_TOKEN` | el token `xoxb-…` |
-   | `SLACK_SIGNING_SECRET` | el Signing Secret |
-   | `MODO_ENSAYO` | `1` (la primera prueba no escribe nada; luego lo cambiamos a `0`) |
-   | `ANTHROPIC_API_KEY` | (opcional por ahora) una clave de **workspace** de console.anthropic.com |
+Solo falta decirle a Slack esa dirección (bloque 2, pasos 12 a 15) e invitar al bot al canal.
 
-5. **Deploy**. En un minuto aparece la URL del proyecto, algo como
-   `https://agente-pedidos-xxxx.vercel.app`.
-6. **Settings → Git → Production Branch**: escribe `claude/eager-newton-ws5vlo` y guarda
-   (o dime que pase el código a `main` y lo hago).
-7. Abre `https://TU-URL.vercel.app/api/slack/events` en el navegador: debe decir
-   `agente-crea-pedidos ok`.
-8. Vuelve a la app de Slack (bloque 2, paso 12 a 15): **Event Subscriptions → Enable →
-   Request URL** = `https://TU-URL.vercel.app/api/slack/events` → *Verified* → agrega los
-   eventos `message.channels`, `message.groups`, `reaction_added` → **Save** → reinstala
-   la app si lo pide.
-9. En el canal `#crear-pedidos` escribe `/invite @agente-crea-pedidos`.
-10. Envía un pedido de prueba con el formato de `PLAN.md` §11.4 y un cliente ficticio. El bot
-    responde en el hilo. Con `MODO_ENSAYO=1`, al reaccionar ✅ muestra lo que habría escrito
-    sin escribirlo. Cuando eso se vea bien, cambias `MODO_ENSAYO` a `0` en Vercel
-    (Settings → Environment Variables), pulsas **Redeploy**, y la siguiente prueba sí crea el
-    pedido en la app.
+> Para publicar cambios: cada vez que subo código a la rama, lanzo un nuevo despliegue desde
+> aquí. Si prefieres que sea automático, en Vercel → proyecto → Settings → Git →
+> *Production Branch* escribe `claude/eager-newton-ws5vlo`.
+
+## Bloque 6 · Clave de Claude de workspace (5 minutos)
+
+La clave que me pasaste empieza por `sk-ant-usr-`: es una clave "de usuario" y la API la
+rechaza si no se le dice además en qué workspace trabajar. La solución limpia es crear una
+clave dentro de un workspace:
+
+1. Entra a <https://console.anthropic.com> con tu cuenta.
+2. Arriba a la izquierda, junto al nombre de la organización, hay un selector de
+   **Workspace**. Si solo dice *Default*, usa ese. Si quieres uno aparte para el bot:
+   **Settings → Workspaces → Create Workspace** → nombre `agente-pedidos` → Create.
+3. Con el workspace elegido, ve a **Settings → API keys** (o directamente
+   <https://console.anthropic.com/settings/keys>).
+4. **Create Key**. En el formulario: *Name* = `agente-pedidos`; *Workspace* = el que elegiste
+   (este campo es lo importante: si aparece "No workspace" o "User", la clave vuelve a ser de
+   usuario). **Create Key**.
+5. Copia la clave. Empieza por `sk-ant-api03-…`. Solo se muestra una vez.
+6. Me la pasas por el chat (o la pegas tú en Vercel → proyecto `agente-pedidos` → Settings →
+   Environment Variables → `ANTHROPIC_API_KEY` → Save → Deployments → Redeploy).
+7. Opcional pero recomendado: en la misma pantalla de API keys, la clave `sk-ant-usr-…` que
+   pegaste en el chat → menú ⋯ → **Disable**.
+
+¿Y el crédito? En **Settings → Billing** debe haber saldo (prepago, con $5 USD alcanza para
+meses). Si está en $0, la API responde error de crédito aunque la clave sea correcta.
+
+Mientras no haya clave, el bot funciona igual con el formato de mensaje recomendado; solo
+pierde la lectura de texto totalmente libre.
