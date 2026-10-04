@@ -29,7 +29,7 @@ test('mensaje libre de cliente nuevo: faltan ciudad, tipo, canal y cliente de', 
   assert.equal(v.pedido.cliente.tipo, 'FINAL');
   assert.ok(v.faltantes.some((f) => /Canal/.test(f)));
   assert.ok(v.faltantes.some((f) => /Cliente de/.test(f)));
-  assert.ok(v.avisos.some((a) => /pago del envío/.test(a)));
+  assert.ok(v.faltantes.some((f) => /Pago del envío/.test(f)));
 });
 
 test('formato completo: ok, con los mismos totales que PE1979', () => {
@@ -60,7 +60,7 @@ test('formato completo: ok, con los mismos totales que PE1979', () => {
 });
 
 test('cliente existente por NIT: toma ciudad, tipo, canal y cliente de de su ficha', () => {
-  const msg = 'Cliente: Cafe de Prueba\nNIT: 900.000.001\nCelular: 3009999999\nDirección: Calle nueva 5 # 6-7\n* B04B — 25 und × $1.220';
+  const msg = 'Cliente: Cafe de Prueba\nNIT: 900.000.001\nCelular: 3009999999\nDirección: Calle nueva 5 # 6-7\nPago del envío: contraentrega\n* B04B — 25 und × $1.220';
   const v = validar(leerMensaje(msg), cat, 'daniela ochoa');
   assert.equal(v.estado, 'ok', JSON.stringify(v));
   assert.equal(v.pedido.cliente.existente.id, 'aa11bb22');
@@ -74,9 +74,9 @@ test('cliente existente por NIT: toma ciudad, tipo, canal y cliente de de su fic
 });
 
 test('distribuidor existente: el precio de lista es el de distribuidor', () => {
-  const ok = validar(leerMensaje('NIT: 900000002\nDirección: x 1\n* B01T — 25 und × $800'), cat, 'JULIAN RODRIGUEZ');
+  const ok = validar(leerMensaje('NIT: 900000002\nDirección: x 1\nEnvío contraentrega\n* B01T — 25 und × $800'), cat, 'JULIAN RODRIGUEZ');
   assert.equal(ok.estado, 'ok', JSON.stringify(ok));
-  const mal = validar(leerMensaje('NIT: 900000002\nDirección: x 1\n* B01T — 25 und × $1.090'), cat, 'JULIAN RODRIGUEZ');
+  const mal = validar(leerMensaje('NIT: 900000002\nDirección: x 1\nEnvío contraentrega\n* B01T — 25 und × $1.090'), cat, 'JULIAN RODRIGUEZ');
   assert.equal(mal.estado, 'error');
   assert.match(mal.errores[0], /distribuidor es \$800/);
 });

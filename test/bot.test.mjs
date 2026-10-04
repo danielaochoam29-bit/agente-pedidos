@@ -75,7 +75,7 @@ test('flujo completo: pedido → faltan → respuesta en hilo → confirmar → 
   assert.deepEqual(slack.reacciones, [[raiz, 'eyes']]);
   assert.match(slack.textosBot(raiz)[0], /Me falta información.*Ciudad de envío/s);
 
-  const r = slack.respuesta(raiz, 'Ciudad: Ibagué, Tolima\nTipo de cliente: FINAL\nCanal: WhatsApp\nCliente de: ARQUI');
+  const r = slack.respuesta(raiz, 'Ciudad: Ibagué, Tolima\nTipo de cliente: FINAL\nCanal: WhatsApp\nCliente de: ARQUI\nEnvío contraentrega');
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: r, thread_ts: raiz, text: slack.hilos.get(raiz).at(-1).text });
   const confirmacion = slack.hilos.get(raiz).at(-1);
   assert.match(confirmacion.text, /^Esto es lo que voy a registrar/);
@@ -170,10 +170,11 @@ test('firma de Slack', () => {
 
 test('asesor en apuros: número suelto tras la pregunta de cantidad, y "si" en el hilo confirma', async () => {
   const { slack, api, bot } = nuevoBot();
-  const msg = MENSAJE_FORMATO.replace('B01T — 25 und × $1.090', 'B01T — 20 und × $1.090');
+  const msg = MENSAJE_FORMATO.replace('B01T — 25 und × $1.090', 'B01T — 20 und × $1.090').replace('  Pago del envío: Pago en bodega con cobro al cliente\n', '');
   const raiz = slack.raiz(msg);
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: raiz, text: msg });
   assert.match(slack.textosBot(raiz).at(-1), /B01T se vende en paquetes de 25/);
+  assert.match(slack.textosBot(raiz).at(-1), /Pago del envío/);
 
   const r = slack.respuesta(raiz, '25, pago del envío en bodega sin cobro al cliente');
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: r, thread_ts: raiz, text: '25, pago del envío en bodega sin cobro al cliente' });

@@ -402,7 +402,7 @@ Esta sección **reemplaza** las propuestas de §6 y §9.3 en lo que se contradig
 | 1 | `ESTADO PEDIDO` | Siempre `EN CONSTRUCCIÓN` |
 | 2 | `ESTADO PAGO` | Siempre `PENDIENTE`. El pago lo registra después el asesor en la app o la automatización de pagos de Slack |
 | 3 | `ESTATUS` y PDF | Ver §11.2: el pedido debe quedar con el PDF generado en `DOCUMENTO` |
-| 4 | `PAGO DEL ENVÍO` | Solo lo que el asesor escriba (`CONTRAENTREGA`, `PAGO EN BODEGA CON COBRO AL CLIENTE`, `PAGO EN BODEGA SIN COBRO AL CLIENTE`). Si no lo escribe: **en blanco** y la respuesta en Slack lo avisa: "⚠️ No aclaraste el pago del envío; quedó en blanco" |
+| 4 | `PAGO DEL ENVÍO` | Solo lo que el asesor escriba (`CONTRAENTREGA`, `PAGO EN BODEGA CON COBRO AL CLIENTE`, `PAGO EN BODEGA SIN COBRO AL CLIENTE`). **Cambio 2026-10-05:** la app lo exige (Enum obligatorio), así que si no lo escribe el bot lo **pregunta en el hilo** en vez de dejarlo en blanco |
 | 5 | `BODEGA` | `BGA`. Solo cambia a `SAN GIL` si el asesor lo escribe |
 | 6 | `VENDEDOR` y `USUARIO` | Según quién envía el mensaje en Slack. Me das la lista "persona de Slack → VENDEDOR" (nombre como aparece en Slack o su correo; con el correo el bot los identifica solo) |
 | 7 | Cliente nuevo | **Tipo de cliente** es `FINAL` salvo que el asesor escriba que es distribuidor (2026-10-05). El asesor debe indicar **Canal** (`WhatsApp` / `Instagram` / `Página web`) y **Cliente de** (`ARQUI` / `DANIELA` / `JULIAN`); si falta alguno, el bot lo pregunta en el hilo. **Si el canal es Página Web, Cliente de es siempre DANIELA**, diga lo que diga el asesor (2026-10-05) |

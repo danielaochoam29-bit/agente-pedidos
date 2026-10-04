@@ -74,7 +74,7 @@ test('sin consecutivo: KEY, PE y consecutivo se dejan a AppSheet', () => {
 });
 
 test('cliente existente: no se crea fila de cliente', () => {
-  const v = validar(leerMensaje('NIT: 900000001\nDirección: Calle 1 # 2-3\n* B01T — 25 und × $1.090'), cat, 'JULIAN RODRIGUEZ');
+  const v = validar(leerMensaje('NIT: 900000001\nDirección: Calle 1 # 2-3\nPago del envío: contraentrega\n* B01T — 25 und × $1.090'), cat, 'JULIAN RODRIGUEZ');
   const a = armar(v.pedido, { ahora });
   assert.equal(a.cliente, null);
   assert.equal(a.pedido.CLIENTE, 'CAFE DE PRUEBA SAS');

@@ -35,7 +35,11 @@ export class AppSheet {
       body: JSON.stringify(cuerpo),
     });
     const texto = await res.text();
-    if (!res.ok) throw new Error(`AppSheet ${action} ${tabla} → ${res.status}: ${texto.slice(0, 300)}`);
+    if (!res.ok) {
+      let detalle = texto;
+      try { detalle = JSON.parse(texto).detail ?? texto; } catch { /* texto plano */ }
+      throw new Error(`AppSheet ${action} ${tabla} → ${res.status}: ${String(detalle).replace(/\s+/g, ' ').slice(0, 600)}`);
+    }
     if (!texto) return {};
     try {
       return JSON.parse(texto);
