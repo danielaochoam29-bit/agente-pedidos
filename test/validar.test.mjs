@@ -25,7 +25,8 @@ test('mensaje libre de cliente nuevo: faltan ciudad, tipo, canal y cliente de', 
   assert.equal(v.estado, 'faltan');
   assert.deepEqual(v.errores, []);
   assert.ok(v.faltantes.some((f) => /Ciudad de envío/.test(f)));
-  assert.ok(v.faltantes.some((f) => /Tipo de cliente/.test(f)));
+  assert.ok(!v.faltantes.some((f) => /Tipo de cliente/.test(f))); // FINAL por defecto
+  assert.equal(v.pedido.cliente.tipo, 'FINAL');
   assert.ok(v.faltantes.some((f) => /Canal/.test(f)));
   assert.ok(v.faltantes.some((f) => /Cliente de/.test(f)));
   assert.ok(v.avisos.some((a) => /pago del envío/.test(a)));
@@ -151,4 +152,21 @@ test('cantidad que no es múltiplo del paquete: pregunta, y la corrección en el
   assert.equal(v2.estado, 'ok', JSON.stringify(v2));
   assert.equal(v2.pedido.items.find((i) => i.ref === 'B01T').cantidad, 25);
   assert.equal(v2.pedido.items.length, 4);
+});
+
+test('cliente nuevo sin tipo es FINAL; "distribuidor" en el texto lo cambia', () => {
+  const sinTipo = MENSAJE_FORMATO.replace('* Tipo de cliente: FINAL\n', '');
+  const a = validar(leerMensaje(sinTipo), cat, 'Arqui Sandoval');
+  assert.equal(a.estado, 'ok', JSON.stringify(a));
+  assert.equal(a.pedido.cliente.tipo, 'FINAL');
+  const b = validar(leerMensaje(sinTipo.replace('* Canal: WhatsApp', '* Tipo de cliente: es distribuidor\n* Canal: WhatsApp').replace(/× \$1\.090/g, '× $800').replace(/× \$1\.450/g, '× $1.070')), cat, 'Arqui Sandoval');
+  assert.equal(b.estado, 'ok', JSON.stringify(b));
+  assert.equal(b.pedido.cliente.tipo, 'DISTRIBUIDOR');
+});
+
+test('sin precio en el mensaje: usa el de lista sin avisos de precio', () => {
+  const v = validar(leerMensaje(MENSAJE_FORMATO.replace(/ × \$[\d.]+/g, '')), cat, 'Arqui Sandoval');
+  assert.equal(v.estado, 'ok', JSON.stringify(v));
+  assert.equal(v.pedido.subtotal, 127000);
+  assert.ok(!v.avisos.some((a) => /precio/.test(a)));
 });

@@ -79,11 +79,13 @@ export function validar(extraido, catalogo, remitente) {
   }
 
   // --- Tipo, canal, cliente de (solo cliente nuevo) -------------------------
-  let tipo = existente ? String(existente['TIPO CLIENTE'] || 'FINAL').trim().toUpperCase() : elegir(c.tipo, VALORES.TIPO_CLIENTE);
+  // Tipo de cliente: FINAL salvo que el asesor diga DISTRIBUIDOR (o la ficha del cliente lo diga).
+  let tipo = existente
+    ? String(existente['TIPO CLIENTE'] || 'FINAL').trim().toUpperCase()
+    : (elegir(c.tipo, VALORES.TIPO_CLIENTE) ?? (/distribuidor/i.test(c.tipo ?? '') ? 'DISTRIBUIDOR' : 'FINAL'));
   let canal = existente ? existente.CANAL : elegir(c.canal, VALORES.CANAL);
   let clienteDe = existente ? existente['CLIENTE DE'] : elegir(c.clienteDe, VALORES.CLIENTE_DE);
   if (!existente) {
-    if (!tipo) faltantes.push(c.tipo ? `Tipo de cliente "${c.tipo}" no es válido. Opciones: FINAL o DISTRIBUIDOR` : 'Tipo de cliente (FINAL o DISTRIBUIDOR)');
     if (!canal) faltantes.push(c.canal ? `Canal "${c.canal}" no es válido. Opciones: WhatsApp, Instagram, Página Web` : 'Canal (WhatsApp, Instagram o Página Web)');
     if (!clienteDe) faltantes.push(c.clienteDe ? `"Cliente de" "${c.clienteDe}" no es válido. Opciones: ARQUI, DANIELA, JULIAN` : 'Cliente de (ARQUI, DANIELA o JULIAN)');
   }
@@ -121,7 +123,6 @@ export function validar(extraido, catalogo, remitente) {
       errores.push(`${it.ref} × ${cantidad}: el mensaje dice ${cop(it.precio)} pero el precio de ${nombreLista} es ${cop(lista)}.`);
       continue;
     }
-    if (it.precio == null) avisos.push(`${it.ref}: no venía precio; uso el de ${nombreLista}: ${cop(lista)}.`);
     const inventario = Number(p['INVENTARIO ACTUAL']) || 0;
     if (inventario < cantidad) avisos.push(`${it.ref}: inventario actual ${inventario}, el pedido lleva ${cantidad}.`);
     items.push({

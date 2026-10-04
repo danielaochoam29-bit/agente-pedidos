@@ -405,9 +405,9 @@ Esta sección **reemplaza** las propuestas de §6 y §9.3 en lo que se contradig
 | 4 | `PAGO DEL ENVÍO` | Solo lo que el asesor escriba (`CONTRAENTREGA`, `PAGO EN BODEGA CON COBRO AL CLIENTE`, `PAGO EN BODEGA SIN COBRO AL CLIENTE`). Si no lo escribe: **en blanco** y la respuesta en Slack lo avisa: "⚠️ No aclaraste el pago del envío; quedó en blanco" |
 | 5 | `BODEGA` | `BGA`. Solo cambia a `SAN GIL` si el asesor lo escribe |
 | 6 | `VENDEDOR` y `USUARIO` | Según quién envía el mensaje en Slack. Me das la lista "persona de Slack → VENDEDOR" (nombre como aparece en Slack o su correo; con el correo el bot los identifica solo) |
-| 7 | Cliente nuevo | El asesor debe indicar **Tipo de cliente** (`FINAL` / `DISTRIBUIDOR`), **Canal** (`WhatsApp` / `Instagram` / `Página web`) y **Cliente de** (`ARQUI` / `DANIELA` / `JULIAN`). Si falta alguno, el bot lo pregunta en el hilo |
+| 7 | Cliente nuevo | **Tipo de cliente** es `FINAL` salvo que el asesor escriba que es distribuidor (2026-10-05). El asesor debe indicar **Canal** (`WhatsApp` / `Instagram` / `Página web`) y **Cliente de** (`ARQUI` / `DANIELA` / `JULIAN`); si falta alguno, el bot lo pregunta en el hilo |
 | 8 | Dirección | El pedido siempre lleva la dirección del mensaje. Si el cliente es nuevo, se crea con esa misma dirección. Si ya existe, su ficha **no se toca** |
-| 9 | Precios | Nunca se crea un pedido con un precio distinto al de la lista de `PRODUCTOS` **según el tipo de cliente** (FINAL: <100 und precio final, ≥100 precio mayor; DISTRIBUIDOR: precio distribuidor). Si el mensaje trae otro precio o una referencia que no existe: ❌ alerta en Slack y no se crea nada |
+| 9 | Precios | El asesor **no tiene que escribir el precio**: el bot lo toma de `PRODUCTOS`. Nunca se crea un pedido con un precio distinto al de la lista **según el tipo de cliente** (FINAL: <100 und precio final, ≥100 precio mayor; DISTRIBUIDOR: precio distribuidor). Si el mensaje trae otro precio o una referencia que no existe: ❌ alerta en Slack y no se crea nada |
 | 10 | Confirmación ✅ antes de escribir | Sí |
 | 11 | Bots de AppSheet | Existen: genera el PDF y alerta pedido nuevo. Ver §11.2 |
 | 12 | Mensaje en texto libre | Se acepta; el bot pregunta todo lo que falte, incluidos los datos del cliente |
