@@ -31,7 +31,11 @@ export async function cargarCatalogo(api, { forzar = false } = {}) {
   if (credenciales()) {
     tablas = await leerTablas();
   } else {
-    const filas = (r) => (Array.isArray(r) ? r : r?.Rows ?? []);
+    const filas = (r) => {
+      if (Array.isArray(r)) return r;
+      if (Array.isArray(r?.Rows)) return r.Rows;
+      throw new Error(`Respuesta inesperada de AppSheet Find: ${JSON.stringify(r).slice(0, 200)}`);
+    };
     const [p, c, m] = await Promise.all([
       api.buscar(TABLAS.PRODUCTOS),
       api.buscar(TABLAS.CLIENTES),
@@ -42,6 +46,10 @@ export async function cargarCatalogo(api, { forzar = false } = {}) {
       CLIENTES: aTabla(filas(c), COLUMNAS.CLIENTES),
       MUNICIPIOS: aTabla(filas(m), COLUMNAS.MUNICIPIOS),
     };
+  }
+  const n = (t) => (tablas[t]?.length ?? 1) - 1;
+  if (n('PRODUCTOS') < 10 || n('MUNICIPIOS') < 100) {
+    throw new Error(`El catálogo llegó incompleto: ${n('PRODUCTOS')} productos, ${n('CLIENTES')} clientes, ${n('MUNICIPIOS')} municipios. Reintenta en un momento.`);
   }
   const catalogo = new Catalogo(tablas);
   cache = { en: Date.now(), catalogo };

@@ -34,10 +34,11 @@ export class AppSheet {
     });
     const texto = await res.text();
     if (!res.ok) throw new Error(`AppSheet ${action} ${tabla} → ${res.status}: ${texto.slice(0, 300)}`);
+    if (!texto) return {};
     try {
-      return texto ? JSON.parse(texto) : {};
+      return JSON.parse(texto);
     } catch {
-      return { raw: texto };
+      throw new Error(`AppSheet ${action} ${tabla} devolvió una respuesta que no es JSON (${texto.length} caracteres): ${texto.slice(0, 120)}`);
     }
   }
 
