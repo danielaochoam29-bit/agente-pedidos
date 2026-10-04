@@ -20,6 +20,11 @@ class SlackFalso {
     return { ts };
   }
   async reaccionar(channel, ts, name) { this.reacciones.push([ts, name]); }
+  async subirArchivo({ channel, thread_ts, nombre, buffer, comentario }) {
+    this.archivos = this.archivos ?? [];
+    this.archivos.push({ nombre, bytes: buffer.length });
+    await this.responder(channel, thread_ts, `${comentario} [archivo ${nombre}]`);
+  }
   /** Como Slack: con el ts de la raíz devuelve el hilo; con el ts de una respuesta, solo esa respuesta. */
   async hilo(channel, ts) {
     if (this.hilos.has(ts)) return this.hilos.get(ts);
@@ -49,7 +54,11 @@ function nuevoBot(ensayo = false) {
   olvidarCache();
   const slack = new SlackFalso();
   const api = appsheetFalso();
-  const bot = new Bot({ slack, api, ensayo, log: () => {} });
+  const bot = new Bot({
+    slack, api, ensayo, log: () => {},
+    esperarPdfFn: async () => ({ documento: '/x/PEDIDOS_PDFS/PE2010.pdf', url: 'https://ejemplo/PE2010' }),
+    descargarPdfFn: async () => Buffer.from('%PDF-1.5 simulado'),
+  });
   return { slack, api, bot };
 }
 
@@ -80,8 +89,10 @@ test('flujo completo: pedido → faltan → respuesta en hilo → confirmar → 
   // Julián confirma
   await bot.manejar({ type: 'reaction_added', reaction: 'white_check_mark', user: JULIAN, item: { channel: 'C1', ts: confirmacion.ts } });
   const textos = slack.textosBot(raiz);
-  assert.match(textos.at(-2), /^⏳ Creando el pedido/);
-  assert.match(textos.at(-1), /^✅ Pedido \*PE2010\* creado/);
+  assert.match(textos.at(-3), /^⏳ Creando el pedido/);
+  assert.match(textos.at(-2), /^✅ Pedido \*PE2010\* creado/);
+  assert.match(textos.at(-1), /PDF del pedido \*PE2010\* generado.*\[archivo PE2010\.pdf\]/);
+  assert.deepEqual(slack.archivos, [{ nombre: 'PE2010.pdf', bytes: 17 }]);
   assert.deepEqual(api.enviado.filter((e) => e.Action !== 'Find').map((e) => [e.tabla, e.Action, e.Rows.length]), [
     ['CLIENTES', 'Add', 1], ['PEDIDOS', 'Add', 1], ['DETALLES PEDIDO', 'Add', 4], ['PEDIDOS', 'Generar PDF', 1],
   ]);
@@ -173,7 +184,7 @@ test('asesor en apuros: número suelto tras la pregunta de cantidad, y "si" en e
 
   const si = slack.respuesta(raiz, 'si');
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: si, thread_ts: raiz, text: 'si' });
-  assert.match(slack.textosBot(raiz).at(-1), /^✅ Pedido \*PE2010\* creado/);
+  assert.match(slack.textosBot(raiz).at(-2), /^✅ Pedido \*PE2010\* creado/);
   assert.equal(api.enviado.filter((e) => e.Action === 'Add').length, 3);
 });
 
@@ -185,4 +196,22 @@ test('"si" sin resumen previo no crea nada', async () => {
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: si, thread_ts: raiz, text: 'ok' });
   assert.match(slack.textosBot(raiz).at(-1), /Todavía no hay un resumen/);
   assert.equal(api.enviado.filter((e) => e.Action === 'Add').length, 0);
+});
+
+test('si el PDF no llega a tiempo, avisa; si falta files:write, publica el enlace', async () => {
+  const sinPdf = nuevoBot();
+  sinPdf.bot.esperarPdfFn = async () => null;
+  let raiz = sinPdf.slack.raiz(MENSAJE_FORMATO);
+  await sinPdf.bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: raiz, text: MENSAJE_FORMATO });
+  let c = sinPdf.slack.hilos.get(raiz).at(-1);
+  await sinPdf.bot.manejar({ type: 'reaction_added', reaction: 'white_check_mark', user: JULIAN, item: { channel: 'C1', ts: c.ts } });
+  assert.match(sinPdf.slack.textosBot(raiz).at(-1), /no terminó de generar el PDF/);
+
+  const sinScope = nuevoBot();
+  sinScope.slack.subirArchivo = async () => { throw new Error('Slack files.getUploadURLExternal: missing_scope'); };
+  raiz = sinScope.slack.raiz(MENSAJE_FORMATO);
+  await sinScope.bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: raiz, text: MENSAJE_FORMATO });
+  c = sinScope.slack.hilos.get(raiz).at(-1);
+  await sinScope.bot.manejar({ type: 'reaction_added', reaction: 'white_check_mark', user: JULIAN, item: { channel: 'C1', ts: c.ts } });
+  assert.match(sinScope.slack.textosBot(raiz).at(-1), /PDF del pedido \*PE2010\* generado\.\nhttps:\/\/ejemplo\/PE2010/);
 });

@@ -91,3 +91,71 @@ export async function registrarEnAppSheet(api, armado) {
   await api.accion(TABLAS.PEDIDOS, ACCION_PDF, [{ KEY: key }]);
   return { key, pe, consecutivo, clienteId };
 }
+
+/** La fila del pedido por su KEY (una sola fila). */
+export async function filaPedidoPorKey(api, key) {
+  const r = await api.buscar(TABLAS.PEDIDOS, `FILTER("PEDIDOS", [KEY] = "${key}")`);
+  const filas = Array.isArray(r) ? r : r?.Rows ?? [];
+  return filas[0] ?? null;
+}
+
+/**
+ * Espera a que el bot de AppSheet genere el PDF: la fila queda con DOCUMENTO
+ * lleno y ESTATUS = COMPLETADO. Si a mitad de camino no ha pasado nada, vuelve
+ * a invocar la acción una vez. Devuelve { url, documento } o null si se agotó el tiempo.
+ */
+export async function esperarPdf(api, key, { timeoutMs = 90_000, cadaMs = 8_000, reintentarA = 35_000, dormir = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+  const inicio = Date.now();
+  let reintentado = false;
+  while (Date.now() - inicio < timeoutMs) {
+    await dormir(cadaMs);
+    let fila = null;
+    try {
+      fila = await filaPedidoPorKey(api, key);
+    } catch {
+      fila = null;
+    }
+    const documento = String(fila?.DOCUMENTO ?? '').trim();
+    const estatus = String(fila?.ESTATUS ?? '').trim().toUpperCase();
+    if (documento && estatus === 'COMPLETADO') {
+      return { documento, url: await urlFirmada(api, key, fila) ?? urlArchivo(api, 'PEDIDOS', documento) };
+    }
+    if (!reintentado && Date.now() - inicio >= reintentarA) {
+      reintentado = true;
+      await api.accion(TABLAS.PEDIDOS, ACCION_PDF, [{ KEY: key }]).catch(() => {});
+    }
+  }
+  return null;
+}
+
+/**
+ * URL firmada del PDF. Find devuelve solo la ruta; las respuestas de Add/Edit/acciones
+ * traen la URL completa con firma. Una edición sin cambios (NOTAS = NOTAS) la obtiene
+ * sin disparar el bot del PDF, cuya condición es ESTATUS = "EN PROCESO".
+ */
+export async function urlFirmada(api, key, fila) {
+  try {
+    const e = await api.llamar(TABLAS.PEDIDOS, 'Edit', [{ KEY: key, NOTAS: fila?.NOTAS ?? '----' }]);
+    const doc = String(e?.Rows?.[0]?.DOCUMENTO ?? '');
+    return /^https?:\/\//.test(doc) ? doc : null;
+  } catch {
+    return null;
+  }
+}
+
+/** URL de descarga de un archivo guardado por AppSheet (como la devuelve la propia API). */
+export function urlArchivo(api, tabla, ruta) {
+  if (/^https?:\/\//.test(ruta)) return ruta;
+  const appName = api.appName ?? process.env.APPSHEET_APP_NAME ?? ruta.split('/').filter(Boolean)[0];
+  const sinExt = ruta.replace(/\.pdf$/i, '');
+  return `https://www.appsheet.com/template/gettablefileurl?appName=${encodeURIComponent(appName)}&tableName=${encodeURIComponent(tabla)}&fileName=${encodeURIComponent(sinExt)}`;
+}
+
+/** Descarga el PDF. Devuelve un Buffer o lanza si no es un PDF. */
+export async function descargarPdf(url, fetchFn = fetch) {
+  const r = await fetchFn(url, { redirect: 'follow' });
+  if (!r.ok) throw new Error(`Descarga del PDF → ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.subarray(0, 4).toString('latin1') !== '%PDF') throw new Error('La descarga no es un PDF');
+  return buf;
+}

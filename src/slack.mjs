@@ -39,6 +39,22 @@ export class Slack {
     return r.messages ?? [];
   }
 
+  /**
+   * Sube un archivo al hilo (flujo externo de Slack: getUploadURLExternal → PUT → completeUploadExternal).
+   * Necesita el permiso files:write; si falta, lanza "missing_scope".
+   */
+  async subirArchivo({ channel, thread_ts, nombre, buffer, titulo = nombre, comentario = '' }) {
+    const u = await this.llamar('files.getUploadURLExternal', { filename: nombre, length: buffer.length });
+    const put = await this.fetchFn(u.upload_url, { method: 'POST', body: buffer });
+    if (!put.ok) throw new Error(`Slack subida del archivo → ${put.status}`);
+    return this.llamar('files.completeUploadExternal', {
+      files: JSON.stringify([{ id: u.file_id, title: titulo }]),
+      channel_id: channel,
+      thread_ts,
+      initial_comment: comentario,
+    });
+  }
+
   /** Nombre real y correo de un usuario (con caché). */
   async usuario(id) {
     if (this.usuarios.has(id)) return this.usuarios.get(id);

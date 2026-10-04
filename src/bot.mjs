@@ -10,9 +10,9 @@
 import { extraer } from './extraer.mjs';
 import { validar, vendedorDe } from './validar.mjs';
 import { armar } from './armar.mjs';
-import { registrarEnAppSheet } from './appsheet.mjs';
+import { registrarEnAppSheet, esperarPdf, descargarPdf } from './appsheet.mjs';
 import { cargarCatalogo } from './datos.mjs';
-import { mensajeConfirmar, mensajeFaltan, mensajeError, mensajeCreado, mensajeFallo } from './mensajes.mjs';
+import { mensajeConfirmar, mensajeFaltan, mensajeError, mensajeCreado, mensajeFallo, mensajePdfListo, mensajePdfNoListo } from './mensajes.mjs';
 
 const MARCA_CONFIRMAR = 'Esto es lo que voy a registrar';
 const MARCA_CREADO = '✅ Pedido';
@@ -21,9 +21,11 @@ const REACCION_OK = 'white_check_mark';
 
 export class Bot {
   /** @param {{slack: import('./slack.mjs').Slack, api: import('./appsheet.mjs').AppSheet, ensayo?: boolean, log?: Function}} deps */
-  constructor({ slack, api, ensayo = process.env.MODO_ENSAYO === '1', log = console.log, canalId = process.env.SLACK_CANAL_ID || null }) {
+  constructor({ slack, api, ensayo = process.env.MODO_ENSAYO === '1', log = console.log, canalId = process.env.SLACK_CANAL_ID || null, esperarPdfFn = esperarPdf, descargarPdfFn = descargarPdf }) {
     this.slack = slack;
     this.api = api;
+    this.esperarPdfFn = esperarPdfFn;
+    this.descargarPdfFn = descargarPdfFn;
     this.ensayo = ensayo;
     this.log = log;
     this.canalId = canalId;
@@ -124,13 +126,42 @@ export class Bot {
         `🧪 *MODO ENSAYO*: no escribí nada en AppSheet. Habría hecho:\n${resumen}` + (r?.error ? `\n❌ ${r.error}` : '') +
         `\n\`\`\`${filas.slice(0, 2500)}${filas.length > 2500 ? '\n…' : ''}\`\`\``);
     }
+    let r;
     try {
-      const r = await registrarEnAppSheet(this.api, armado);
+      r = await registrarEnAppSheet(this.api, armado);
       await this.slack.responder(channel, raiz, mensajeCreado(v.pedido, r));
       await this.slack.reaccionar(channel, raiz, REACCION_OK);
     } catch (e) {
       this.log('ERROR registrando', e);
-      await this.slack.responder(channel, raiz, mensajeFallo(e.message));
+      return this.slack.responder(channel, raiz, mensajeFallo(e.message));
+    }
+    await this.publicarPdf(channel, raiz, r);
+  }
+
+  /** Espera el PDF que genera AppSheet y lo sube al hilo (o publica el enlace si falta el permiso files:write). */
+  async publicarPdf(channel, raiz, { key, pe }) {
+    try {
+      const pdf = await this.esperarPdfFn(this.api, key);
+      if (!pdf) return this.slack.responder(channel, raiz, mensajePdfNoListo(pe));
+      let buffer = null;
+      try {
+        buffer = await this.descargarPdfFn(pdf.url);
+      } catch (e) {
+        this.log('No se pudo descargar el PDF', e.message);
+      }
+      if (buffer) {
+        try {
+          await this.slack.subirArchivo({ channel, thread_ts: raiz, nombre: `${pe}.pdf`, buffer, titulo: `Pedido ${pe}`, comentario: mensajePdfListo(pe) });
+          return;
+        } catch (e) {
+          this.log('No se pudo subir el PDF a Slack', e.message);
+          if (!/missing_scope/.test(e.message)) throw e;
+        }
+      }
+      await this.slack.responder(channel, raiz, `${mensajePdfListo(pe)}\n${pdf.url}`);
+    } catch (e) {
+      this.log('ERROR publicando el PDF', e);
+      await this.slack.responder(channel, raiz, `${mensajePdfListo(pe)} (no pude adjuntarlo: ${e.message})`).catch(() => {});
     }
   }
 

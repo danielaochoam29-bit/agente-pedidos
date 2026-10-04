@@ -129,3 +129,25 @@ test('si no puede leer el consecutivo, no escribe nada', async () => {
   await assert.rejects(registrarEnAppSheet(api, a), /último consecutivo/);
   assert.equal(api.enviado.filter((e) => e.Action === 'Add').length, 0);
 });
+
+test('esperarPdf: espera hasta que DOCUMENTO y ESTATUS=COMPLETADO, reintentando la acción una vez', async () => {
+  const { esperarPdf } = await import('../src/appsheet.mjs');
+  const api = new AppSheet({ ensayo: true });
+  let consultas = 0;
+  api.llamar = async function (tabla, action) {
+    this.enviado.push(action);
+    if (action === 'Find') { consultas++; return { Rows: consultas >= 3 ? [{ KEY: 'K', ESTATUS: 'COMPLETADO', DOCUMENTO: '/APP-1/PEDIDOS_PDFS/PE2010_X.pdf', NOTAS: '----' }] : [{ KEY: 'K', ESTATUS: '', DOCUMENTO: '' }] }; }
+    if (action === 'Edit') return { Rows: [{ KEY: 'K', DOCUMENTO: 'https://www.appsheet.com/template/gettablefileurl?appName=APP-1&tableName=PEDIDOS&fileName=%2FAPP-1%2FPEDIDOS_PDFS%2FPE2010_X.pdf&signature=abc' }] };
+    return { Rows: [] };
+  };
+  let reloj = 0;
+  const dormir = async (ms) => { reloj += ms; };
+  const realNow = Date.now; Date.now = () => realNow() + reloj;
+  try {
+    const r = await esperarPdf(api, 'K', { timeoutMs: 90_000, cadaMs: 20_000, reintentarA: 35_000, dormir });
+    assert.equal(r.documento, '/APP-1/PEDIDOS_PDFS/PE2010_X.pdf');
+    assert.match(r.url, /signature=abc$/);
+    assert.equal(api.enviado.filter((a) => a === 'Generar PDF').length, 1);
+    assert.equal(api.enviado.filter((a) => a === 'Edit').length, 1);
+  } finally { Date.now = realNow; }
+});

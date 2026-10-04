@@ -39,9 +39,17 @@ export function mensajeCreado(p, { pe, key }) {
   return `✅ Pedido *${pe ?? key}* creado\n` +
     `Cliente: ${c.nombre}${c.existente ? '' : ' (creado nuevo)'}\n` +
     `${p.items.length} referencia(s) · ${p.unidades} und · Subtotal ${cop(p.subtotal)} · Envío ${p.valorEnvio ? cop(p.valorEnvio) : 'por confirmar'}\n` +
-    `Vendedor: ${p.vendedor} · Estado: EN CONSTRUCCIÓN · Pago: PENDIENTE · PDF: en proceso`;
+    `Vendedor: ${p.vendedor} · Estado: EN CONSTRUCCIÓN · Pago: PENDIENTE\n⏳ Generando el PDF…`;
 }
 
 export function mensajeFallo(motivo) {
   return `❌ Intenté crear el pedido pero algo falló:\n\`${motivo}\`\nRevisa en la app si quedó algo a medias (cliente o pedido sin detalles) antes de volver a enviarlo.`;
+}
+
+export function mensajePdfListo(pe) {
+  return `📄 PDF del pedido *${pe}* generado.`;
+}
+
+export function mensajePdfNoListo(pe) {
+  return `⚠️ El pedido *${pe}* quedó creado, pero AppSheet no terminó de generar el PDF. Ábrelo en la app y pulsa *Generar PDF*.`;
 }
