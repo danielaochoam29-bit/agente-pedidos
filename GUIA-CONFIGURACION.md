@@ -66,6 +66,7 @@ También verifica (solo mirar, sin cambiar):
    | `reactions:write` | poner 👀 cuando recibe un pedido |
    | `users:read` | saber quién escribió (para VENDEDOR) |
    | `users:read.email` | identificar al asesor por su correo |
+   | `files:write` | subir el PDF del pedido al hilo (agregado 2026-10-05) |
 
 ### 2.3 Instalar y copiar las llaves
 
@@ -201,3 +202,14 @@ meses). Si está en $0, la API responde error de crédito aunque la clave sea co
 
 Mientras no haya clave, el bot funciona igual con el formato de mensaje recomendado; solo
 pierde la lectura de texto totalmente libre.
+
+## Bloque 7 · Permiso para subir el PDF al hilo (2 minutos)
+
+El bot ya descarga el PDF que genera AppSheet y lo publica en el hilo. Para adjuntarlo como
+archivo necesita un permiso más:
+
+1. <https://api.slack.com/apps> → tu app → **OAuth & Permissions** → **Bot Token Scopes** →
+   **Add an OAuth Scope** → `files:write`.
+2. Arriba aparece un aviso amarillo: **reinstall your app** → **Allow**. El token `xoxb-…` no cambia.
+
+Mientras ese permiso no esté, el bot publica el enlace de descarga del PDF en vez del archivo.
