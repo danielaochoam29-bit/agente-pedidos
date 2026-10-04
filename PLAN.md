@@ -388,3 +388,155 @@ Lo demás (§3 flujo, §5 fases, §7 costos, §8 riesgos) sigue igual.
 2. Te envío la guía corta para crear la app de Slack y la cuenta de servicio (son clics, no código).
 3. Arranco Fase 1 en este repo (`claude/eager-newton-ws5vlo`): te muestro el dry run con PE1979 reproducido exactamente.
 4. Seguimos con Fases 2 y 3.
+
+---
+
+## 11. Decisiones tomadas y respuestas (2026-10-04, tercera vuelta)
+
+Esta sección **reemplaza** las propuestas de §6 y §9.3 en lo que se contradigan.
+
+### 11.1 Reglas de negocio ya definidas por ti
+
+| # | Regla | Cómo la aplica el bot |
+|---|---|---|
+| 1 | `ESTADO PEDIDO` | Siempre `EN CONSTRUCCIÓN` |
+| 2 | `ESTADO PAGO` | Siempre `PENDIENTE`. El pago lo registra después el asesor en la app o la automatización de pagos de Slack |
+| 3 | `ESTATUS` y PDF | Ver §11.2: el pedido debe quedar con el PDF generado en `DOCUMENTO` |
+| 4 | `PAGO DEL ENVÍO` | Solo lo que el asesor escriba (`CONTRAENTREGA`, `PAGO EN BODEGA CON COBRO AL CLIENTE`, `PAGO EN BODEGA SIN COBRO AL CLIENTE`). Si no lo escribe: **en blanco** y la respuesta en Slack lo avisa: "⚠️ No aclaraste el pago del envío; quedó en blanco" |
+| 5 | `BODEGA` | `BGA`. Solo cambia a `SAN GIL` si el asesor lo escribe |
+| 6 | `VENDEDOR` y `USUARIO` | Según quién envía el mensaje en Slack. Me das la lista "persona de Slack → VENDEDOR" (nombre como aparece en Slack o su correo; con el correo el bot los identifica solo) |
+| 7 | Cliente nuevo | El asesor debe indicar **Tipo de cliente** (`FINAL` / `DISTRIBUIDOR`), **Canal** (`WhatsApp` / `Instagram` / `Página web`) y **Cliente de** (`ARQUI` / `DANIELA` / `JULIAN`). Si falta alguno, el bot lo pregunta en el hilo |
+| 8 | Dirección | El pedido siempre lleva la dirección del mensaje. Si el cliente es nuevo, se crea con esa misma dirección. Si ya existe, su ficha **no se toca** |
+| 9 | Precios | Nunca se crea un pedido con un precio distinto al de la lista de `PRODUCTOS` **según el tipo de cliente** (FINAL: <100 und precio final, ≥100 precio mayor; DISTRIBUIDOR: precio distribuidor). Si el mensaje trae otro precio o una referencia que no existe: ❌ alerta en Slack y no se crea nada |
+| 10 | Confirmación ✅ antes de escribir | Sí |
+| 11 | Bots de AppSheet | Existen: genera el PDF y alerta pedido nuevo. Ver §11.2 |
+| 12 | Mensaje en texto libre | Se acepta; el bot pregunta todo lo que falte, incluidos los datos del cliente |
+| 13 | `MUESTRAS`, `RETENCIÓN EN LA FUENTE`, `DESCUENTO` | `NO`, `0`, `0` salvo que el asesor lo diga |
+| 13b | `PAGO CONTRAENTREGA` (la mercancía se paga al recibir) | Siempre `NO`, salvo que el asesor escriba que la mercancía es contraentrega |
+
+### 11.2 El PDF del pedido (ESTATUS → EN PROCESO → bot de AppSheet → COMPLETADO)
+
+Dato clave: **los bots de AppSheet solo se disparan con cambios hechos a través de AppSheet**
+(la app o su API). Si el agente escribe la fila directamente en la hoja de Google, AppSheet la
+ve, pero su bot de "nuevo pedido" y el del PDF **no corren**. Eso es lo que pasa hoy con los
+pedidos de la página web (por eso el equipo los mueve a mano).
+
+Para que el pedido quede con el PDF listo en `DOCUMENTO`, hay dos caminos:
+
+| Camino | Cómo funciona | Qué necesita | Mi recomendación |
+|---|---|---|---|
+| **A. API de AppSheet (recomendado)** | El agente crea el cliente, el pedido y los detalles **a través de la API de AppSheet** en vez de la hoja. Para AppSheet es como si un usuario los hubiera creado: se disparan los bots (alerta de pedido nuevo y PDF), se aplican los valores iniciales de la app (KEY, consecutivo) y se respetan las validaciones. Luego el agente pone `ESTATUS = EN PROCESO` por la misma API, el bot genera el PDF y lo deja en `COMPLETADO` | Plan **Core** o superior de AppSheet. Como ya tienes bots, ya estás en Core, así que solo hay que **activar la API**: editor de la app → *Settings* → *Integrations* → *Enable* y copiar el *App Id* y la *Application Access Key* | ✅ Es el camino limpio: cero duplicación de lógica, el consecutivo lo asigna AppSheet (se acaba el riesgo de choque de §9.2) y las alertas que ya tienes funcionan solas |
+| B. Hoja + bot programado | El agente escribe en la hoja con `ESTATUS = EN PROCESO`, y en AppSheet se crea un bot **programado** (cada 5 min, por ejemplo) que busque pedidos en ese estado y ejecute la misma acción del PDF | Crear un bot programado en AppSheet | Funciona, pero el PDF tarda hasta 5 min y hay que mantener dos lógicas (la del bot y la de la app) |
+
+Con el camino A el diagrama de §4 cambia en una sola flecha: las **lecturas** (PRODUCTOS,
+CLIENTES, MUNICIPIOS) siguen por Google Sheets API, y las **escrituras** (CLIENTES, PEDIDOS,
+DETALLES PEDIDO, cambio de ESTATUS) van por la API de AppSheet. El costo no cambia.
+
+**Lo que necesito de ti para esto:** activar la API en la app y pasarme el App Id y la Access
+Key. Y confirmarme el nombre exacto de la acción que pasa `ESTATUS` a `EN PROCESO` (o si basta
+con escribir ese valor en la columna para que el bot arranque).
+
+### 11.3 Pruebas seguras sin tocar la hoja original
+
+Tres capas, de la más aislada a la más real:
+
+1. **Pruebas automáticas sin Google ni Slack.** Igual que `npm run probar` de la página: un Google
+   simulado en memoria. Corren en segundos y las uso en cada cambio. Aquí reproduzco PE1979 y
+   todos los casos ⚠️ y ❌.
+2. **Hoja de pruebas.** Haces *Archivo → Hacer una copia* de `BD APP BOLSAS AS COFFE` y la
+   llamas `BD PRUEBAS BOT` (quedan los 769 clientes y el catálogo real, pero es otra hoja).
+   La compartes con la cuenta de servicio. El bot tiene una variable `HOJA_ID`: en pruebas
+   apunta a la copia, en producción a la original.
+3. **App de pruebas.** Para probar el PDF y las alertas (camino A de §11.2), en AppSheet se hace
+   *Copy app* marcando **"Copy data"**: te crea una app gemela apuntando a la hoja copia, con
+   los mismos bots. El bot usa el *App Id* de la copia en pruebas y el de la original en
+   producción.
+4. **Canal de pruebas** `#pedidos-pruebas` en Slack. El bot solo escucha el canal que tenga
+   configurado.
+
+Pasar a producción = cambiar 3 variables (`HOJA_ID`, `APPSHEET_APP_ID`, `SLACK_CANAL`). Nada
+más. Y antes de hacerlo, borramos las filas de prueba de la copia o simplemente la archivamos.
+
+### 11.4 Formato de mensaje recomendado para los asesores
+
+El bot entiende texto libre, pero con este formato **nunca** tendrá que preguntar. Las líneas
+con `*` son obligatorias; las demás, si faltan, el bot usa el valor por defecto o pregunta.
+
+```
+PEDIDO
+* Cliente: Angel Maria Gaitan Pulido
+  Marca: (opcional)
+* NIT/CC: 93287888
+* Celular: 3007567875
+* Dirección: Carrera 12 # 69-158 conjunto Balcones del Bosque torre 8 apartamento 201
+* Ciudad: Ibagué, Tolima
+* Tipo de cliente: FINAL              (FINAL o DISTRIBUIDOR; solo si es cliente nuevo)
+* Canal: WhatsApp                     (WhatsApp, Instagram o Página web; solo si es cliente nuevo)
+* Cliente de: ARQUI                   (ARQUI, DANIELA o JULIAN; solo si es cliente nuevo)
+  Pago del envío: Pago en bodega con cobro al cliente   (o Contraentrega, o Pago en bodega sin cobro; vacío = el bot avisa)
+  Valor del envío: por confirmar      (o el valor, ej. 18500)
+  Pago contraentrega: NO              (SI solo si la mercancía se paga al recibir)
+  Bodega: BGA                         (o SAN GIL)
+  Descuento: 0
+  Muestras: NO
+  Notas despacho: (lo que deba saber bodega)
+* Productos:
+  * B01TG — 25 und × $1.090
+  * B01T — 25 und × $1.090
+  * B02T — 25 und × $1.450
+  * B02P — 25 und × $1.450
+```
+
+Notas:
+- El bloque de productos puede ir **pegado tal cual sale de la cotización** (con descripción y
+  subtotal); el bot solo usa referencia, cantidad y precio y recalcula lo demás.
+- "Ciudad" acepta `Ibagué`, `Ibagué, Tolima` o `Ibague Tolima`; el bot busca el código DANE en
+  `MUNICIPIOS` y, si hay dos municipios con el mismo nombre (p. ej. hay varios "San José"),
+  pregunta cuál.
+- Si el cliente **ya existe** (por NIT o celular), Tipo de cliente, Canal y Cliente de se toman
+  de su ficha y no hace falta escribirlos.
+- Te entrego este formato como *snippet* o mensaje fijado en el canal para que lo copien.
+
+### 11.5 ¿El bot sabe de qué pedido le están respondiendo si hay varios en cola?
+
+Sí, y sin ambigüedad, gracias a cómo funciona Slack:
+
+1. Cada mensaje de pedido que publica un asesor es un mensaje "raíz" con un identificador único
+   (Slack lo llama `ts`). El bot **siempre responde en el hilo** de ese mensaje.
+2. Cuando el asesor contesta dentro del hilo ("Ibagué"), Slack le manda al bot esa respuesta
+   **junto con el identificador del mensaje raíz**. Así el bot sabe exactamente a qué pedido
+   pertenece, aunque haya 10 pedidos pendientes de 3 asesores distintos.
+3. El bot guarda el estado de cada pedido pendiente (lo que ya entendió y lo que falta) en la
+   pestaña `SLACK_LOG`, con la llave = identificador del hilo. Si el servicio se reinicia, no
+   pierde nada.
+4. Si alguien responde en el canal y no en el hilo, el bot contesta: "Respóndeme en el hilo del
+   pedido de *Angel Maria Gaitan*" para que no se mezclen.
+5. Un pedido pendiente que nadie complete en 24 h se marca como `ABANDONADO` en `SLACK_LOG` y el
+   bot lo avisa en el hilo; nunca se crea a medias.
+
+Ejemplo con dos pedidos en cola:
+
+```
+#pedidos
+├─ [Julián] PEDIDO · Angel Maria Gaitan … (sin ciudad)
+│   └─ [bot] ⚠️ Me falta: Ciudad de envío. Respóndeme aquí.
+│   └─ [Julián] Ibagué
+│   └─ [bot] Resumen … ¿Creo el pedido? Reacciona ✅
+│   └─ [Julián] ✅
+│   └─ [bot] ✅ Pedido PE2010 creado · PDF en proceso
+└─ [Daniela] PEDIDO · Café La Montaña … (sin pago del envío)
+    └─ [bot] Resumen … ⚠️ No aclaraste el pago del envío; quedará en blanco. ¿Creo el pedido?
+    └─ [Daniela] ✅
+    └─ [bot] ✅ Pedido PE2011 creado · PDF en proceso
+```
+
+### 11.6 Qué queda pendiente de tu lado (Fase 0 definitiva)
+
+1. Activar la API de AppSheet y pasarme *App Id* + *Access Key* (de la app de pruebas primero).
+2. Hacer la copia de la hoja (`BD PRUEBAS BOT`) y la copia de la app con datos.
+3. Crear la app de Slack con permisos de bot (o ampliar la de los avisos) y el canal
+   `#pedidos-pruebas`. Pasarme Bot Token y Signing Secret.
+4. Rotar la clave de la cuenta de servicio de Google y pasármela.
+5. API key de Claude.
+6. Lista "persona de Slack (nombre o correo) → VENDEDOR".
+7. Nombre de la acción de AppSheet que pasa `ESTATUS` a `EN PROCESO`.
