@@ -107,14 +107,14 @@ test('registro en AppSheet: lee el consecutivo, genera llaves, cliente, pedido, 
     ['CLIENTES', 'Add', 1],
     ['PEDIDOS', 'Add', 1],
     ['DETALLES PEDIDO', 'Add', 4],
-    ['PEDIDOS', 'Generar PDF', 1],
+    ['PEDIDOS', 'Edit', 1],
   ]);
   const ped = api.enviado[2].Rows[0];
   assert.equal(ped.KEY, r.key);
   assert.equal(ped.PE, 'PE2010');
   assert.equal(ped['NUMERO CONSECUTIVO'], 2010);
   assert.ok(api.enviado[3].Rows.every((d) => d.PE === r.key));
-  assert.deepEqual(api.enviado[4].Rows, [{ KEY: r.key }]);
+  assert.deepEqual(api.enviado[4].Rows, [{ KEY: r.key, ESTATUS: 'EN PROCESO' }]);
 
   const texto = mensajeCreado(v.pedido, r);
   assert.match(texto, /✅ Pedido \*PE2010\* creado/);
@@ -130,13 +130,14 @@ test('si no puede leer el consecutivo, no escribe nada', async () => {
   assert.equal(api.enviado.filter((e) => e.Action === 'Add').length, 0);
 });
 
-test('esperarPdf: espera hasta que DOCUMENTO y ESTATUS=COMPLETADO, reintentando la acción una vez', async () => {
+test('esperarPdf: espera hasta que DOCUMENTO y ESTATUS=COMPLETADO, reintentando el disparo una vez', async () => {
   const { esperarPdf } = await import('../src/appsheet.mjs');
   const api = new AppSheet({ ensayo: true });
   let consultas = 0;
-  api.llamar = async function (tabla, action) {
+  api.llamar = async function (tabla, action, rows) {
     this.enviado.push(action);
     if (action === 'Find') { consultas++; return { Rows: consultas >= 3 ? [{ KEY: 'K', ESTATUS: 'COMPLETADO', DOCUMENTO: '/APP-1/PEDIDOS_PDFS/PE2010_X.pdf', NOTAS: '----' }] : [{ KEY: 'K', ESTATUS: '', DOCUMENTO: '' }] }; }
+    if (action === 'Edit' && rows[0].ESTATUS === 'EN PROCESO') return { Rows: [{ KEY: 'K', ESTATUS: '', DOCUMENTO: '' }] }; // disparo: aún sin PDF
     if (action === 'Edit') return { Rows: [{ KEY: 'K', DOCUMENTO: 'https://www.appsheet.com/template/gettablefileurl?appName=APP-1&tableName=PEDIDOS&fileName=%2FAPP-1%2FPEDIDOS_PDFS%2FPE2010_X.pdf&signature=abc' }] };
     return { Rows: [] };
   };
@@ -147,7 +148,6 @@ test('esperarPdf: espera hasta que DOCUMENTO y ESTATUS=COMPLETADO, reintentando 
     const r = await esperarPdf(api, 'K', { timeoutMs: 90_000, cadaMs: 20_000, reintentarA: 35_000, dormir });
     assert.equal(r.documento, '/APP-1/PEDIDOS_PDFS/PE2010_X.pdf');
     assert.match(r.url, /signature=abc$/);
-    assert.equal(api.enviado.filter((a) => a === 'Generar PDF').length, 1);
-    assert.equal(api.enviado.filter((a) => a === 'Edit').length, 1);
+    assert.equal(api.enviado.filter((a) => a === 'Edit').length, 2); // 1 reintento del disparo + 1 para la URL firmada
   } finally { Date.now = realNow; }
 });

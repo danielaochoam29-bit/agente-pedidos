@@ -38,8 +38,11 @@ export const DEFAULTS = {
 /** A partir de cuántas unidades de una referencia aplica el precio "mayor a 100". */
 export const VOLUMEN_DESDE = 100;
 
-/** Nombre exacto de la acción de AppSheet que genera el PDF (tabla PEDIDOS). */
-export const ACCION_PDF = 'Generar PDF';
+/**
+ * La acción "Generar PDF" de la app pone ESTATUS = EN PROCESO y eso dispara el bot
+ * CREAR PDF PEDIDOS. Por la API se reproduce con una edición de ESTATUS (ver appsheet.dispararPdf).
+ */
+export const ESTATUS_GENERAR_PDF = 'EN PROCESO';
 
 /** Nombres exactos de las tablas en AppSheet y pestañas en la hoja. */
 export const TABLAS = {

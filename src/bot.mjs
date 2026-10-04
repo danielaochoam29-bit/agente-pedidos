@@ -139,9 +139,9 @@ export class Bot {
   }
 
   /** Espera el PDF que genera AppSheet y lo sube al hilo (o publica el enlace si falta el permiso files:write). */
-  async publicarPdf(channel, raiz, { key, pe }) {
+  async publicarPdf(channel, raiz, { key, pe, pdf: yaListo = null }) {
     try {
-      const pdf = await this.esperarPdfFn(this.api, key);
+      const pdf = await this.esperarPdfFn(this.api, key, { yaListo });
       if (!pdf) return this.slack.responder(channel, raiz, mensajePdfNoListo(pe));
       let buffer = null;
       try {

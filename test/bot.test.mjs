@@ -94,7 +94,7 @@ test('flujo completo: pedido → faltan → respuesta en hilo → confirmar → 
   assert.match(textos.at(-1), /PDF del pedido \*PE2010\* generado.*\[archivo PE2010\.pdf\]/);
   assert.deepEqual(slack.archivos, [{ nombre: 'PE2010.pdf', bytes: 17 }]);
   assert.deepEqual(api.enviado.filter((e) => e.Action !== 'Find').map((e) => [e.tabla, e.Action, e.Rows.length]), [
-    ['CLIENTES', 'Add', 1], ['PEDIDOS', 'Add', 1], ['DETALLES PEDIDO', 'Add', 4], ['PEDIDOS', 'Generar PDF', 1],
+    ['CLIENTES', 'Add', 1], ['PEDIDOS', 'Add', 1], ['DETALLES PEDIDO', 'Add', 4], ['PEDIDOS', 'Edit', 1],
   ]);
   const ped = api.enviado.find((e) => e.tabla === 'PEDIDOS' && e.Action === 'Add').Rows[0];
   assert.equal(ped['TOTAL QTY'], 100);

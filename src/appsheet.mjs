@@ -6,7 +6,7 @@
  * se registra lo que se habría enviado y se devuelven respuestas simuladas.
  */
 
-import { ACCION_PDF, TABLAS } from './config.mjs';
+import { TABLAS } from './config.mjs';
 import { conLlaves } from './armar.mjs';
 
 const PROPIEDADES = { Locale: 'es-CO', Timezone: 'SA Pacific Standard Time' };
@@ -92,8 +92,23 @@ export async function registrarEnAppSheet(api, armado) {
   const detalles = armado.detalles.map((d) => ({ ...d, PE: key }));
   await api.agregar(TABLAS.DETALLES, detalles);
 
-  await api.accion(TABLAS.PEDIDOS, ACCION_PDF, [{ KEY: key }]);
-  return { key, pe, consecutivo, clienteId };
+  const estado = await dispararPdf(api, key);
+  return { key, pe, consecutivo, clienteId, pdf: estado };
+}
+
+/**
+ * Dispara la generación del PDF igual que la acción "Generar PDF" de la app:
+ * pone ESTATUS = EN PROCESO, que es la condición del bot CREAR PDF PEDIDOS.
+ * (Invocar la acción por nombre a través de la API no la ejecuta.)
+ * AppSheet suele responder ya con ESTATUS = COMPLETADO y la URL firmada del PDF.
+ */
+export async function dispararPdf(api, key) {
+  const e = await api.llamar(TABLAS.PEDIDOS, 'Edit', [{ KEY: key, ESTATUS: 'EN PROCESO' }]);
+  const fila = e?.Rows?.[0] ?? null;
+  const documento = String(fila?.DOCUMENTO ?? '').trim();
+  const estatus = String(fila?.ESTATUS ?? '').trim().toUpperCase();
+  if (documento && estatus === 'COMPLETADO') return { documento, url: /^https?:\/\//.test(documento) ? documento : null };
+  return null;
 }
 
 /** La fila del pedido por su KEY (una sola fila). */
@@ -108,7 +123,8 @@ export async function filaPedidoPorKey(api, key) {
  * lleno y ESTATUS = COMPLETADO. Si a mitad de camino no ha pasado nada, vuelve
  * a invocar la acción una vez. Devuelve { url, documento } o null si se agotó el tiempo.
  */
-export async function esperarPdf(api, key, { timeoutMs = 90_000, cadaMs = 8_000, reintentarA = 35_000, dormir = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+export async function esperarPdf(api, key, { timeoutMs = 90_000, cadaMs = 8_000, reintentarA = 35_000, dormir = (ms) => new Promise((r) => setTimeout(r, ms)), yaListo = null } = {}) {
+  if (yaListo?.documento && yaListo.url) return yaListo;
   const inicio = Date.now();
   let reintentado = false;
   while (Date.now() - inicio < timeoutMs) {
@@ -126,7 +142,7 @@ export async function esperarPdf(api, key, { timeoutMs = 90_000, cadaMs = 8_000,
     }
     if (!reintentado && Date.now() - inicio >= reintentarA) {
       reintentado = true;
-      await api.accion(TABLAS.PEDIDOS, ACCION_PDF, [{ KEY: key }]).catch(() => {});
+      await dispararPdf(api, key).catch(() => {});
     }
   }
   return null;
