@@ -14,8 +14,8 @@ AppSheet y dispara la acción *Generar PDF*.
 | Fase | Estado |
 |---|---|
 | 1. Núcleo sin Slack: lector, validaciones, filas, pruebas | ✅ hecho (25 pruebas, `npm test`) |
-| 2. Bot de Slack (hilos, confirmación ✅, escritura real en AppSheet) | pendiente: faltan las llaves de Slack y AppSheet |
-| 3. Producción | pendiente |
+| 2. Bot de Slack (hilos, confirmación ✅, escritura en AppSheet por API) | ✅ programado y probado en simulación (32 pruebas) |
+| 3. Publicar en Vercel y primera prueba real | pendiente: `GUIA-CONFIGURACION.md` bloque 5 |
 
 ## Cómo está hecho
 
@@ -29,8 +29,12 @@ src/
 ├── validar.mjs    TODAS las reglas de negocio → { estado: ok | faltan | error, faltantes, errores, avisos, pedido }
 ├── armar.mjs      el pedido validado → filas con los nombres de columna exactos (CLIENTES, PEDIDOS, DETALLES PEDIDO)
 ├── appsheet.mjs   cliente de la API de AppSheet: Add, Find, acciones; registrarEnAppSheet() hace la secuencia completa
-├── google.mjs     lectura de la hoja con la cuenta de servicio (adaptado de la página web)
+├── google.mjs     lectura de la hoja con la cuenta de servicio (opcional; adaptado de la página web)
+├── datos.mjs      carga el catálogo por la API de AppSheet (Find) o por Google si hay credenciales; caché 2 min
+├── slack.mjs      Web API de Slack (responder en hilo, reacciones, leer hilo, usuario) y verificación de firma
+├── bot.mjs        qué hacer con cada evento: mensaje nuevo, respuesta en hilo, reacción ✅; el hilo es el estado
 └── mensajes.mjs   los textos que el bot escribe en Slack
+api/slack/events.js función de Vercel que recibe los eventos de Slack (responde en <3 s y procesa después)
 scripts/ensayo.mjs  ensayo en seco: nunca escribe
 test/               pruebas con catálogo simulado (clientes ficticios; el repo es público)
 ```

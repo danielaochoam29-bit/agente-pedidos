@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "description": "Agente que registra en la app de AppSheet los pedidos que los asesores envían por Slack.",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node --test \"test/**/*.test.mjs\"",
     "ensayo": "node scripts/ensayo.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0"
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@vercel/functions": "^3.9.11"
   }
 }

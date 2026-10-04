@@ -55,6 +55,13 @@ export function fechaColombia(conHora = false, ahora = new Date()) {
   return f.replace(',', '');
 }
 
+/** Fecha en formato ISO, que la API de AppSheet entiende sin ambigüedad: "2026-10-02" o "2026-10-02 14:16:09". */
+export function fechaIso(conHora = false, ahora = new Date()) {
+  const [d, m, resto] = fechaColombia(conHora, ahora).split('/');
+  const [a, hora] = resto.split(' ');
+  return `${a}-${m}-${d}${conHora && hora ? ' ' + hora : ''}`;
+}
+
 /** 8 caracteres hexadecimales al azar, como los KEY de AppSheet. */
 export function hex8() {
   const bytes = crypto.getRandomValues(new Uint8Array(4));

@@ -159,3 +159,43 @@ Mapa de asesores (ya definido):
 4. Borramos el pedido y el cliente de prueba desde la app.
 5. Repetimos una vez con un caso de error (referencia inexistente, ciudad faltante).
 6. Pasamos al canal definitivo.
+
+---
+
+## Bloque 5 · Publicar el bot en Vercel (10 minutos, solo clics)
+
+El bot ya está programado en este repositorio (rama `claude/eager-newton-ws5vlo`). Vercel lo
+publica directamente desde GitHub.
+
+1. Entra a <https://vercel.com/new> con tu cuenta de Vercel.
+2. **Import Git Repository** → busca `danielaochoam29-bit/agente-pedidos` → **Import**.
+   Si no aparece, pulsa *Adjust GitHub App Permissions* y dale acceso a ese repositorio.
+3. En la pantalla de configuración, **no cambies** Framework ni comandos (Vercel detecta que es
+   un proyecto Node sin build).
+4. Abre **Environment Variables** y agrega una por una (nombre → valor):
+
+   | Nombre | Valor |
+   |---|---|
+   | `APPSHEET_APP_ID` | el App Id de AppSheet |
+   | `APPSHEET_ACCESS_KEY` | la Application Access Key |
+   | `SLACK_BOT_TOKEN` | el token `xoxb-…` |
+   | `SLACK_SIGNING_SECRET` | el Signing Secret |
+   | `MODO_ENSAYO` | `1` (la primera prueba no escribe nada; luego lo cambiamos a `0`) |
+   | `ANTHROPIC_API_KEY` | (opcional por ahora) una clave de **workspace** de console.anthropic.com |
+
+5. **Deploy**. En un minuto aparece la URL del proyecto, algo como
+   `https://agente-pedidos-xxxx.vercel.app`.
+6. **Settings → Git → Production Branch**: escribe `claude/eager-newton-ws5vlo` y guarda
+   (o dime que pase el código a `main` y lo hago).
+7. Abre `https://TU-URL.vercel.app/api/slack/events` en el navegador: debe decir
+   `agente-crea-pedidos ok`.
+8. Vuelve a la app de Slack (bloque 2, paso 12 a 15): **Event Subscriptions → Enable →
+   Request URL** = `https://TU-URL.vercel.app/api/slack/events` → *Verified* → agrega los
+   eventos `message.channels`, `message.groups`, `reaction_added` → **Save** → reinstala
+   la app si lo pide.
+9. En el canal `#crear-pedidos` escribe `/invite @agente-crea-pedidos`.
+10. Envía un pedido de prueba con el formato de `PLAN.md` §11.4 y un cliente ficticio. El bot
+    responde en el hilo. Con `MODO_ENSAYO=1`, al reaccionar ✅ muestra lo que habría escrito
+    sin escribirlo. Cuando eso se vea bien, cambias `MODO_ENSAYO` a `0` en Vercel
+    (Settings → Environment Variables), pulsas **Redeploy**, y la siguiente prueba sí crea el
+    pedido en la app.

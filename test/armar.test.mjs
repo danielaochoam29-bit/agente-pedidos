@@ -21,14 +21,14 @@ test('las filas quedan como PE1979 (cliente nuevo + pedido + 4 detalles)', () =>
   assert.equal(a.cliente.MUNICIPIO, '73001');
   assert.equal(a.cliente['CLIENTE DE'], 'ARQUI');
   assert.equal(a.cliente.CANAL, 'WhatsApp');
-  assert.equal(a.cliente['FECHA PDF'], '02/10/2026 14:16:09');
+  assert.equal(a.cliente['FECHA PDF'], '2026-10-02 14:16:09');
   assert.match(a.cliente['CLIENTE ID'], /^[0-9a-f]{8}$/);
 
   const p = a.pedido;
   assert.match(p.KEY, /^PE1979[0-9a-f]{8}$/);
   assert.equal(p.PE, 'PE1979');
   assert.equal(p['NUMERO CONSECUTIVO'], 1979);
-  assert.equal(p.FECHA, '02/10/2026');
+  assert.equal(p.FECHA, '2026-10-02');
   assert.equal(p.CLIENTE, 'MARIA PRUEBA GOMEZ');
   assert.equal(p.DEPARTAMENTO, 'TOLIMA');
   assert.equal(p.MUNICIPIO, '73001');
@@ -54,7 +54,7 @@ test('las filas quedan como PE1979 (cliente nuevo + pedido + 4 detalles)', () =>
   assert.equal(a.detalles.length, 4);
   const d = a.detalles[0];
   assert.equal(d.PE, p.KEY);
-  assert.equal(d.FECHA, '02/10/2026');
+  assert.equal(d.FECHA, '2026-10-02');
   assert.equal(d.CLIENTE, 'MARIA PRUEBA GOMEZ');
   assert.equal(d['ITEM NRO'], 'B01TG');
   assert.equal(d.FOTO, 'PRODUCTOS_Images/B01TG.FOTO.193130.png');

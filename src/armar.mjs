@@ -2,6 +2,9 @@
  * Convierte el pedido validado en las filas que van a AppSheet, con los nombres
  * de columna exactos de la hoja (igual que quedó PE1979).
  *
+ * Las fechas van en ISO (2026-10-02): la API de AppSheet las interpreta sin
+ * ambigüedad y la hoja las muestra con su propio formato.
+ *
  * KEY, PE y NUMERO CONSECUTIVO del pedido NO se envían: los asigna AppSheet con
  * los valores iniciales de la app (así lo hace cuando un asesor crea un pedido).
  * Si en la primera prueba real resultara que AppSheet no los llena por API,
@@ -9,7 +12,7 @@
  */
 
 import { DEFAULTS } from './config.mjs';
-import { fechaColombia, hex8 } from './texto.mjs';
+import { fechaIso, hex8 } from './texto.mjs';
 
 export function filaCliente(pedido, ahora = new Date()) {
   const c = pedido.cliente;
@@ -24,7 +27,7 @@ export function filaCliente(pedido, ahora = new Date()) {
     DEPARTAMENTO: c.departamento,
     MUNICIPIO: c.municipio,
     'CLIENTE DE': c.clienteDe,
-    'FECHA PDF': fechaColombia(true, ahora),
+    'FECHA PDF': fechaIso(true, ahora),
     CANAL: c.canal,
   };
 }
@@ -32,7 +35,7 @@ export function filaCliente(pedido, ahora = new Date()) {
 export function filaPedido(pedido, ahora = new Date()) {
   const c = pedido.cliente;
   return {
-    FECHA: fechaColombia(false, ahora),
+    FECHA: fechaIso(false, ahora),
     CLIENTE: c.nombre,
     'DIRECCIÓN DE ENVÍO': c.direccion,
     DEPARTAMENTO: c.departamento,
@@ -60,7 +63,7 @@ export function filaPedido(pedido, ahora = new Date()) {
 
 /** Una fila por referencia. `keyPedido` es la KEY completa del pedido (p. ej. PE1979a66b85b8). */
 export function filasDetalle(pedido, keyPedido, ahora = new Date()) {
-  const fecha = fechaColombia(false, ahora);
+  const fecha = fechaIso(false, ahora);
   return pedido.items.map((i) => ({
     KEY: hex8(),
     FECHA: fecha,
