@@ -21,7 +21,8 @@ export class AppSheet {
 
   async llamar(tabla, action, rows, props = {}) {
     const cuerpo = { Action: action, Properties: { ...PROPIEDADES, ...props }, Rows: rows };
-    if (this.ensayo) {
+    // En ensayo se bloquean solo las escrituras; las lecturas (Find) van a la API.
+    if (this.ensayo && action !== 'Find') {
       this.enviado.push({ tabla, ...cuerpo });
       return { Rows: rows.map((r) => ({ ...r })) };
     }

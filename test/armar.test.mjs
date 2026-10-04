@@ -80,6 +80,15 @@ test('cliente existente: no se crea fila de cliente', () => {
   assert.equal(a.pedido.CLIENTE, 'CAFE DE PRUEBA SAS');
 });
 
+test('en ensayo, Find sí llama a la API y Add no', async () => {
+  const llamadas = [];
+  const api = new AppSheet({ ensayo: true, appId: 'app', accessKey: 'k', fetchFn: async (url, o) => { llamadas.push(JSON.parse(o.body).Action); return new Response(JSON.stringify([{ KEY: '1' }]), { status: 200 }); } });
+  assert.deepEqual(await api.buscar('MUNICIPIOS'), [{ KEY: '1' }]);
+  await api.agregar('PEDIDOS', [{ a: 1 }]);
+  assert.deepEqual(llamadas, ['Find']);
+  assert.equal(api.enviado.length, 1);
+});
+
 test('registro en AppSheet (ensayo): cliente, pedido, detalles con la KEY devuelta, y acción Generar PDF', async () => {
   const v = validar(leerMensaje(MENSAJE_FORMATO), cat, 'JULIAN RODRIGUEZ');
   const a = armar(v.pedido, { ahora });
