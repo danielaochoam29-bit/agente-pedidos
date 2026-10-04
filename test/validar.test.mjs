@@ -170,3 +170,15 @@ test('sin precio en el mensaje: usa el de lista sin avisos de precio', () => {
   assert.equal(v.pedido.subtotal, 127000);
   assert.ok(!v.avisos.some((a) => /precio/.test(a)));
 });
+
+test('canal Página Web: cliente de es DANIELA aunque el asesor diga otra cosa', () => {
+  const msg = MENSAJE_FORMATO.replace('* Canal: WhatsApp', '* Canal: pagina web');
+  const v = validar(leerMensaje(msg), cat, 'Arqui Sandoval'); // dice "Cliente de: ARQUI"
+  assert.equal(v.estado, 'ok', JSON.stringify(v));
+  assert.equal(v.pedido.cliente.canal, 'Página Web');
+  assert.equal(v.pedido.cliente.clienteDe, 'DANIELA');
+  assert.ok(v.avisos.some((a) => /queda en DANIELA/.test(a)));
+  const sin = validar(leerMensaje(msg.replace('* Cliente de: ARQUI\n', '')), cat, 'Arqui Sandoval');
+  assert.equal(sin.estado, 'ok', JSON.stringify(sin));
+  assert.equal(sin.pedido.cliente.clienteDe, 'DANIELA');
+});

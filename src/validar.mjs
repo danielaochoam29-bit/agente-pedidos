@@ -85,6 +85,11 @@ export function validar(extraido, catalogo, remitente) {
     : (elegir(c.tipo, VALORES.TIPO_CLIENTE) ?? (/distribuidor/i.test(c.tipo ?? '') ? 'DISTRIBUIDOR' : 'FINAL'));
   let canal = existente ? existente.CANAL : elegir(c.canal, VALORES.CANAL);
   let clienteDe = existente ? existente['CLIENTE DE'] : elegir(c.clienteDe, VALORES.CLIENTE_DE);
+  // Regla fija: si el canal es Página Web, el cliente siempre es de DANIELA, diga lo que diga el asesor.
+  if (!existente && canal === 'Página Web') {
+    if (clienteDe && clienteDe !== 'DANIELA') avisos.push(`El canal es Página Web, así que "Cliente de" queda en DANIELA (no ${clienteDe}).`);
+    clienteDe = 'DANIELA';
+  }
   if (!existente) {
     if (!canal) faltantes.push(c.canal ? `Canal "${c.canal}" no es válido. Opciones: WhatsApp, Instagram, Página Web` : 'Canal (WhatsApp, Instagram o Página Web)');
     if (!clienteDe) faltantes.push(c.clienteDe ? `"Cliente de" "${c.clienteDe}" no es válido. Opciones: ARQUI, DANIELA, JULIAN` : 'Cliente de (ARQUI, DANIELA o JULIAN)');
