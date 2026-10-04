@@ -110,8 +110,7 @@ export function validar(extraido, catalogo, remitente) {
     if (paquete > 1 && cantidad % paquete !== 0) {
       const abajo = Math.floor(cantidad / paquete) * paquete;
       const arriba = abajo + paquete;
-      faltantes.push(`${it.ref} se vende en paquetes de ${paquete} y pediste ${cantidad}. ¿Qué cantidad registro? Responde por ejemplo "${it.ref}: ${arriba} und"${abajo ? ` o "${it.ref}: ${abajo} und"` : ''}.`);
-      continue;
+      faltantes.push(`${it.ref} se vende en paquetes de ${paquete} y pediste ${cantidad}. ¿Qué cantidad registro? Responde por ejemplo "${it.ref} ${arriba} und"${abajo ? ` o "${it.ref} ${abajo} und"` : ''}.`);
     }
     const { precio: lista, lista: nombreLista } = precioDeLista(p, cantidad, tipo ?? 'FINAL');
     if (!lista) {
@@ -138,7 +137,7 @@ export function validar(extraido, catalogo, remitente) {
   }
   const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
   if (extraido.subtotalDeclarado != null && items.length && !errores.length && Number(extraido.subtotalDeclarado) !== subtotal) {
-    errores.push(`El subtotal del mensaje (${cop(extraido.subtotalDeclarado)}) no coincide con la suma de los ítems (${cop(subtotal)}).`);
+    avisos.push(`El subtotal del mensaje decía ${cop(extraido.subtotalDeclarado)}; con las cantidades y precios de lista queda en ${cop(subtotal)}.`);
   }
 
   // --- Envío, pago, bodega y demás -----------------------------------------

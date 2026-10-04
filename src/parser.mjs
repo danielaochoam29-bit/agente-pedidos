@@ -78,9 +78,11 @@ function siNo(v) {
 
 /** Referencias como B01TG, B02P, PFS300-P, FD01: letras y números, 3 a 10 caracteres. */
 const REF = /[A-Z]{1,4}\d{1,4}[A-Z0-9-]{0,5}/;
-const LINEA_REF = new RegExp(`^\\s*[*•·\\-]?\\s*(${REF.source})\\s*(?:[—–-]|:|·|\\|)?\\s*(.*)$`);
-const CANT_PRECIO = /(\d[\d.,]*)\s*(?:und|unds|unidades|u\.?|uds?)\b[^\d$]*\$?\s*([\d.,]+)/i;
-const SOLO_CANT = /(\d[\d.,]*)\s*(?:und|unds|unidades|u\.?|uds?)\b/i;
+// Sin distinguir mayúsculas: "b01b 25 und" también vale. El asterisco de negrita de Slack (*B04B*) se tolera.
+const LINEA_REF = new RegExp(`^\\s*[*•·\\-]?\\s*\\*?(${REF.source})\\*?\\s*(?:[—–-]|:|·|\\||x|×)?\\s*(.*)$`, 'i');
+const UNIDAD = '(?:und|unds|unid|unidad|unidades|bolsas?|latas?|u\\.?|uds?|pcs|piezas)';
+const CANT_PRECIO = new RegExp(`(\\d[\\d.,]*)\\s*${UNIDAD}\\b[^\\d$]*\\$?\\s*([\\d.,]+)`, 'i');
+const SOLO_CANT = new RegExp(`(\\d[\\d.,]*)\\s*${UNIDAD}\\b`, 'i');
 
 /**
  * Extrae [{ref, cantidad, precio}] de todo el texto. Una referencia puede
@@ -90,9 +92,11 @@ export function leerItems(texto) {
   const lineas = texto.split(/\r?\n/);
   const items = [];
   for (let i = 0; i < lineas.length; i++) {
-    const m = LINEA_REF.exec(lineas[i].trim().toUpperCase() === lineas[i].trim() ? lineas[i] : lineas[i]);
+    const m = LINEA_REF.exec(lineas[i]);
     if (!m) continue;
     const ref = m[1].toUpperCase();
+    // Una palabra corriente que casualmente empieza por letras+números no es referencia si no trae cantidad.
+    if (!/\d/.test(ref) || ref.length > 10) continue;
     // Evita confundir "PE1979" o "CO123" (números de pedido) con referencias.
     if (/^(PE|CO|OP|PO)\d+$/.test(ref)) continue;
     const resto = m[2] ?? '';

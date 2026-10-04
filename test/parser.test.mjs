@@ -57,3 +57,11 @@ test('celular con +57 y valor de envío con puntos', () => {
   assert.equal(r.valorEnvio, 18500);
   assert.equal(r.pagoContraentrega, 'SI');
 });
+
+test('respuestas libres del asesor: minúsculas, "unidades", negrita de Slack, "x"', () => {
+  assert.deepEqual(leerItems('b01b 25 und'), [{ ref: 'B01B', cantidad: 25, precio: null }]);
+  assert.deepEqual(leerItems('B01B 25 unidades'), [{ ref: 'B01B', cantidad: 25, precio: null }]);
+  assert.deepEqual(leerItems('• *B04B* — Bolsa · blanco\n  100 und × $1.100 = $110.000'), [{ ref: 'B04B', cantidad: 100, precio: 1100 }]);
+  assert.deepEqual(leerItems('b02p x 50 bolsas'), [{ ref: 'B02P', cantidad: 50, precio: null }]);
+  assert.deepEqual(leerItems('Carrera 28 # 12-60\nC.C 1066349068\nN 3246213328'), []);
+});
