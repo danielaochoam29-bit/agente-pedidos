@@ -108,7 +108,10 @@ export function validar(extraido, catalogo, remitente) {
     }
     const paquete = Number(p['CANTIDAD POR PAQUETE']) || 0;
     if (paquete > 1 && cantidad % paquete !== 0) {
-      avisos.push(`${it.ref} se vende en paquetes de ${paquete}; pediste ${cantidad}.`);
+      const abajo = Math.floor(cantidad / paquete) * paquete;
+      const arriba = abajo + paquete;
+      faltantes.push(`${it.ref} se vende en paquetes de ${paquete} y pediste ${cantidad}. ¿Qué cantidad registro? Responde por ejemplo "${it.ref}: ${arriba} und"${abajo ? ` o "${it.ref}: ${abajo} und"` : ''}.`);
+      continue;
     }
     const { precio: lista, lista: nombreLista } = precioDeLista(p, cantidad, tipo ?? 'FINAL');
     if (!lista) {

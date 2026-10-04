@@ -140,3 +140,14 @@ test('contraentrega, San Gil, descuento y mercancía contraentrega', () => {
   assert.equal(v.pedido.total, 120000);
   assert.equal(v.pedido.pagoContraentrega, 'SI');
 });
+
+test('cantidad que no es múltiplo del paquete: pregunta, y la corrección en el hilo manda', () => {
+  const msg = MENSAJE_FORMATO.replace('B01T — 25 und × $1.090', 'B01T — 20 und × $1.090');
+  const v = validar(leerMensaje(msg), cat, 'Arqui Sandoval');
+  assert.equal(v.estado, 'faltan');
+  assert.match(v.faltantes[0], /B01T se vende en paquetes de 25 y pediste 20.*"B01T: 25 und"/);
+  const v2 = validar(leerMensaje(msg + '\nB01T: 25 und'), cat, 'Arqui Sandoval');
+  assert.equal(v2.estado, 'ok', JSON.stringify(v2));
+  assert.equal(v2.pedido.items.find((i) => i.ref === 'B01T').cantidad, 25);
+  assert.equal(v2.pedido.items.length, 4);
+});

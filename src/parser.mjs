@@ -109,7 +109,10 @@ export function leerItems(texto) {
     const sc = SOLO_CANT.exec(resto) ?? (lineas[i + 1] && !LINEA_REF.test(lineas[i + 1]) ? SOLO_CANT.exec(lineas[i + 1]) : null);
     if (sc) items.push({ ref, cantidad: numero(sc[1]), precio: null });
   }
-  return items;
+  // Si una referencia aparece varias veces (p. ej. el asesor corrigió la cantidad en el hilo), vale la última.
+  const porRef = new Map();
+  for (const it of items) porRef.set(it.ref, { ...porRef.get(it.ref), ...it, precio: it.precio ?? porRef.get(it.ref)?.precio ?? null });
+  return [...porRef.values()];
 }
 
 // --- Bloque libre del cliente -------------------------------------------
