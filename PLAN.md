@@ -556,6 +556,9 @@ Ejemplo con dos pedidos en cola:
 - Una vez creado, cualquier respuesta en el mismo hilo propone **actualizar ese mismo pedido**
   (misma KEY y PE): el bot muestra "Esto es lo que voy a actualizar en el pedido PEXXXX", el ✅
   edita la cabecera, reemplaza los detalles y luego pregunta "¿Genero el PDF de nuevo?".
+  Ese resumen muestra **solo lo que cambia** frente a lo registrado en la app (antes → después:
+  campos de la cabecera, referencias nuevas, quitadas o con otra cantidad/precio, y el subtotal).
+  Si no cambia nada, el bot lo dice y no pide confirmación.
   Nunca se crea un segundo pedido desde un hilo.
 - "quita B01N" / "sin B01N" retira una referencia; una mención posterior la vuelve a incluir.
 - El PDF se dispara poniendo ESTATUS = EN PROCESO (invocar la acción por API no la ejecuta) y se

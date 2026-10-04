@@ -17,11 +17,12 @@
 import { extraer } from './extraer.mjs';
 import { validar, vendedorDe } from './validar.mjs';
 import { armar } from './armar.mjs';
-import { registrarEnAppSheet, actualizarEnAppSheet, pedidoPorPe, dispararPdf, esperarPdf, descargarPdf } from './appsheet.mjs';
+import { registrarEnAppSheet, actualizarEnAppSheet, pedidoPorPe, detallesDe, dispararPdf, esperarPdf, descargarPdf } from './appsheet.mjs';
+import { cambiosPedido } from './cambios.mjs';
 import { cargarCatalogo } from './datos.mjs';
 import { fechaIso } from './texto.mjs';
 import {
-  mensajeConfirmar, mensajeConfirmarCambio, mensajeFaltan, mensajeError, mensajeCreado, mensajeActualizado,
+  mensajeConfirmar, mensajeConfirmarCambio, mensajeSinCambios, mensajeFaltan, mensajeError, mensajeCreado, mensajeActualizado,
   mensajeFallo, mensajePdfListo, mensajePdfNoListo, mensajePreguntaPdf,
 } from './mensajes.mjs';
 
@@ -106,8 +107,26 @@ export class Bot {
     let texto;
     if (v.estado === 'faltan') texto = mensajeFaltan(v);
     else if (v.estado === 'error') texto = mensajeError(v);
-    else texto = creado ? mensajeConfirmarCambio(v, creado.pe) : mensajeConfirmar(v);
+    else if (!creado) texto = mensajeConfirmar(v);
+    else {
+      const cambios = await this.cambiosFrenteALaApp(creado.pe, v.pedido);
+      if (cambios && !cambios.length) return this.slack.responder(event.channel, raiz, mensajeSinCambios(creado.pe));
+      texto = mensajeConfirmarCambio(v, creado.pe, cambios);
+    }
     await this.slack.responder(event.channel, raiz, texto);
+  }
+
+  /** Lee el pedido en la app y devuelve solo lo que cambiaría; null si no se pudo leer. */
+  async cambiosFrenteALaApp(pe, pedido) {
+    try {
+      const fila = await pedidoPorPe(this.api, pe);
+      if (!fila?.KEY) return null;
+      const detalles = await detallesDe(this.api, fila.KEY);
+      return cambiosPedido(fila, detalles, pedido);
+    } catch (e) {
+      this.log('No pude leer el pedido para comparar', e);
+      return null;
+    }
   }
 
   /** El último mensaje del bot que espera un ✅ (resumen para crear, resumen para actualizar o pregunta del PDF). */

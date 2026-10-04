@@ -45,9 +45,9 @@ function appsheetFalso() {
   const objetos = (t) => t.slice(1).map((f) => Object.fromEntries(t[0].map((c, i) => [c, f[i]])));
   api.llamar = async function (tabla, action, rows, props) {
     this.enviado.push({ tabla, Action: action, Rows: rows });
-    if (action === 'Find' && tabla === 'PEDIDOS' && /\[PE\] = "PE2010"/.test(props?.Selector ?? '')) return { Rows: [{ KEY: 'PE2010abcdef01', PE: 'PE2010', CLIENTE: 'MARIA PRUEBA GOMEZ', NOTAS: '----' }] };
+    if (action === 'Find' && tabla === 'PEDIDOS' && /\[PE\] = "PE2010"/.test(props?.Selector ?? '')) return { Rows: [{ KEY: 'PE2010abcdef01', PE: 'PE2010', CLIENTE: 'MARIA PRUEBA GOMEZ', NOTAS: '----', 'DIRECCIÓN DE ENVÍO': 'Carrera 12 # 69-158 conjunto Balcones del Bosque torre 8 apartamento 201', DEPARTAMENTO: 'TOLIMA', MUNICIPIO: '73001', CELULAR: '3001234567', 'VALOR DEL ENVÍO': '0', 'PAGO DEL ENVÍO': 'CONTRAENTREGA', 'PAGO CONTRAENTREGA': 'NO', BODEGA: 'BGA', MUESTRAS: 'NO', DESCUENTO: '0', 'NOTAS DESPACHO': 'N/A', 'SUBTOTAL PEDIDO': '127000' }] };
     if (action === 'Find' && tabla === 'PEDIDOS') return { Rows: [{ KEY: 'PE2009863a4589', PE: 'PE2009', 'NUMERO CONSECUTIVO': '2009' }] };
-    if (action === 'Find' && tabla === 'DETALLES PEDIDO') return { Rows: [{ KEY: 'd1' }, { KEY: 'd2' }] };
+    if (action === 'Find' && tabla === 'DETALLES PEDIDO') return { Rows: [{ KEY: 'd1', 'ITEM NRO': 'B01T', CANTIDAD: '25', 'PRECIO DE VENTA UND': '1090' }, { KEY: 'd2', 'ITEM NRO': 'B02P', CANTIDAD: '25', 'PRECIO DE VENTA UND': '1450' }] };
     if (action === 'Find') return { Rows: objetos({ PRODUCTOS, CLIENTES, MUNICIPIOS }[tabla]) };
     return { Rows: rows };
   };
@@ -116,8 +116,12 @@ test('flujo completo: pedido → faltan → respuesta en hilo → confirmar → 
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: r2, thread_ts: raiz, text: 'Dirección: Calle 9 # 9-99\nquita B02P' });
   const cambio = slack.hilos.get(raiz).at(-1);
   assert.match(cambio.text, /^Esto es lo que voy a actualizar en el pedido \*PE2010\*/);
-  assert.match(cambio.text, /Calle 9 # 9-99/);
-  assert.ok(!/B02P/.test(cambio.text));
+  // Solo muestra lo que cambia, no el resumen completo
+  assert.match(cambio.text, /\*Envío a:\* Carrera 12 .* → Calle 9 # 9-99/);
+  assert.match(cambio.text, /\*B02P\* — se quita/);
+  assert.match(cambio.text, /\*B01TG\* — nuevo: 25 und/);
+  assert.match(cambio.text, /\*Subtotal:\* \$127\.000 → \$90\.750/);
+  assert.ok(!/\*Cliente:\*/.test(cambio.text) && !/\*B01T\* —/.test(cambio.text), cambio.text);
   const antesUpd = api.enviado.length;
   await bot.manejar({ type: 'reaction_added', reaction: 'white_check_mark', user: JULIAN, item: { channel: 'C1', ts: cambio.ts } });
   const acciones = api.enviado.slice(antesUpd).map((e) => [e.tabla, e.Action, e.Rows.length]);

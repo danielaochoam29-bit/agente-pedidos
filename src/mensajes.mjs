@@ -54,9 +54,15 @@ export function mensajePdfNoListo(pe) {
   return `⚠️ El pedido *${pe}* quedó creado, pero AppSheet no terminó de generar el PDF. Ábrelo en la app y pulsa *Generar PDF*.`;
 }
 
-export function mensajeConfirmarCambio(v, pe) {
+/** Solo lo que cambia frente a lo registrado; si `cambios` es null (no se pudo leer la app) muestra el resumen completo. */
+export function mensajeConfirmarCambio(v, pe, cambios = null) {
   const avisos = v.avisos.length ? `\n\n⚠️ ${v.avisos.join('\n⚠️ ')}` : '';
-  return `Esto es lo que voy a actualizar en el pedido *${pe}*:\n\n${resumenPedido(v.pedido)}${avisos}\n\n¿Lo actualizo? Reacciona con ✅ a este mensaje (o responde *no*).`;
+  const cuerpo = cambios == null ? resumenPedido(v.pedido) : cambios.join('\n');
+  return `Esto es lo que voy a actualizar en el pedido *${pe}*:\n\n${cuerpo}${avisos}\n\n¿Lo actualizo? Reacciona con ✅ a este mensaje (o responde *no*).`;
+}
+
+export function mensajeSinCambios(pe) {
+  return `El pedido *${pe}* ya está registrado así; no veo nada que cambiar. Si quieres modificar algo, responde aquí con el cambio.`;
 }
 
 export function mensajeActualizado(p, { pe }) {
