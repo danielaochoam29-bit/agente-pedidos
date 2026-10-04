@@ -7,6 +7,7 @@
  */
 
 import { ACCION_PDF, TABLAS } from './config.mjs';
+import { conLlaves } from './armar.mjs';
 
 const PROPIEDADES = { Locale: 'es-CO', Timezone: 'SA Pacific Standard Time' };
 
@@ -57,23 +58,36 @@ export class AppSheet {
   }
 }
 
+/** Último NUMERO CONSECUTIVO de PEDIDOS (lee una sola fila). */
+export async function ultimoConsecutivo(api) {
+  const r = await api.buscar(TABLAS.PEDIDOS, 'FILTER("PEDIDOS", [NUMERO CONSECUTIVO] = MAX(PEDIDOS[NUMERO CONSECUTIVO]))');
+  const filas = Array.isArray(r) ? r : r?.Rows ?? [];
+  const n = Number(filas[0]?.['NUMERO CONSECUTIVO']);
+  if (!Number.isInteger(n) || n <= 0) throw new Error(`No pude leer el último consecutivo de PEDIDOS (${JSON.stringify(filas[0] ?? null).slice(0, 120)}).`);
+  return n;
+}
+
 /**
  * Crea cliente (si es nuevo), pedido y detalles, y dispara el PDF.
- * Devuelve { key, pe, clienteId }.
+ * Las llaves (KEY, PE, NUMERO CONSECUTIVO) las genera el bot con el formato de la
+ * app (PE + consecutivo + 8 hex), leyendo el último consecutivo justo antes de
+ * escribir, igual que hace la página web en su pestaña.
+ * Devuelve { key, pe, consecutivo, clienteId }.
  */
 export async function registrarEnAppSheet(api, armado) {
+  const consecutivo = (await ultimoConsecutivo(api)) + 1;
+  const pedido = armado.pedido.KEY ? armado.pedido : conLlaves(armado.pedido, consecutivo);
+  const key = pedido.KEY;
+  const pe = pedido.PE;
+
   let clienteId = armado.cliente ? armado.cliente['CLIENTE ID'] : null;
   if (armado.cliente) await api.agregar(TABLAS.CLIENTES, [armado.cliente]);
 
-  const res = await api.agregar(TABLAS.PEDIDOS, [armado.pedido]);
-  const fila = res?.Rows?.[0] ?? {};
-  const key = fila.KEY ?? armado.pedido.KEY;
-  const pe = fila.PE ?? armado.pedido.PE;
-  if (!key) throw new Error('AppSheet no devolvió la KEY del pedido; hay que generar las llaves aquí (ver armar.conLlaves).');
+  await api.agregar(TABLAS.PEDIDOS, [pedido]);
 
   const detalles = armado.detalles.map((d) => ({ ...d, PE: key }));
   await api.agregar(TABLAS.DETALLES, detalles);
 
   await api.accion(TABLAS.PEDIDOS, ACCION_PDF, [{ KEY: key }]);
-  return { key, pe, clienteId };
+  return { key, pe, consecutivo, clienteId };
 }

@@ -118,9 +118,11 @@ export class Bot {
     if (this.ensayo) {
       this.api.enviado = [];
       const r = await registrarEnAppSheet(this.api, { ...armado, pedido: { ...armado.pedido } }).catch((e) => ({ error: e.message }));
+      const resumen = this.api.enviado.map((e) => `• ${e.Action} en ${e.tabla}: ${e.Rows.length} fila(s)` + (e.tabla === 'PEDIDOS' && e.Action === 'Add' ? ` → ${e.Rows[0].PE} (KEY ${e.Rows[0].KEY})` : '')).join('\n');
+      const filas = JSON.stringify(this.api.enviado.map((e) => ({ tabla: e.tabla, accion: e.Action, filas: e.Rows })), null, 1);
       return this.slack.responder(channel, raiz,
-        `🧪 *MODO ENSAYO*: no escribí nada en AppSheet. Habría enviado:\n\`\`\`${JSON.stringify(this.api.enviado.map((e) => ({ tabla: e.tabla, accion: e.Action, filas: e.Rows })), null, 1).slice(0, 2800)}\`\`\`` +
-        (r?.error ? `\n(${r.error})` : ''));
+        `🧪 *MODO ENSAYO*: no escribí nada en AppSheet. Habría hecho:\n${resumen}` + (r?.error ? `\n❌ ${r.error}` : '') +
+        `\n\`\`\`${filas.slice(0, 2500)}${filas.length > 2500 ? '\n…' : ''}\`\`\``);
     }
     try {
       const r = await registrarEnAppSheet(this.api, armado);

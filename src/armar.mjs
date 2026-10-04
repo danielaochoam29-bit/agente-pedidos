@@ -5,10 +5,9 @@
  * Las fechas van en ISO (2026-10-02): la API de AppSheet las interpreta sin
  * ambigüedad y la hoja las muestra con su propio formato.
  *
- * KEY, PE y NUMERO CONSECUTIVO del pedido NO se envían: los asigna AppSheet con
- * los valores iniciales de la app (así lo hace cuando un asesor crea un pedido).
- * Si en la primera prueba real resultara que AppSheet no los llena por API,
- * `conLlaves()` los genera aquí con el mismo formato (PE + consecutivo + 8 hex).
+ * KEY, PE y NUMERO CONSECUTIVO del pedido los pone `conLlaves()` justo antes de
+ * escribir (ver appsheet.registrarEnAppSheet), con el formato de la app:
+ * PE + consecutivo + 8 hex.
  */
 
 import { DEFAULTS } from './config.mjs';

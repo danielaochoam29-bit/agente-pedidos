@@ -89,37 +89,43 @@ test('en ensayo, Find sí llama a la API y Add no', async () => {
   assert.equal(api.enviado.length, 1);
 });
 
-test('registro en AppSheet (ensayo): cliente, pedido, detalles con la KEY devuelta, y acción Generar PDF', async () => {
+test('registro en AppSheet: lee el consecutivo, genera llaves, cliente, pedido, detalles y Generar PDF', async () => {
   const v = validar(leerMensaje(MENSAJE_FORMATO), cat, 'JULIAN RODRIGUEZ');
   const a = armar(v.pedido, { ahora });
   const api = new AppSheet({ ensayo: true });
-  // Simula que AppSheet devuelve la fila con KEY y PE calculados por la app.
   api.llamar = async function (tabla, action, rows, props) {
-    this.enviado.push({ tabla, Action: action, Rows: rows });
-    if (tabla === 'PEDIDOS' && action === 'Add') return { Rows: [{ ...rows[0], KEY: 'PE2010abcdef01', PE: 'PE2010' }] };
+    this.enviado.push({ tabla, Action: action, Rows: rows, props });
+    if (action === 'Find') return { Rows: [{ KEY: 'PE2009863a4589', PE: 'PE2009', 'NUMERO CONSECUTIVO': '2009' }] };
     return { Rows: rows };
   };
   const r = await registrarEnAppSheet(api, a);
-  assert.equal(r.key, 'PE2010abcdef01');
   assert.equal(r.pe, 'PE2010');
+  assert.equal(r.consecutivo, 2010);
+  assert.match(r.key, /^PE2010[0-9a-f]{8}$/);
   assert.deepEqual(api.enviado.map((e) => [e.tabla, e.Action, e.Rows.length]), [
+    ['PEDIDOS', 'Find', 0],
     ['CLIENTES', 'Add', 1],
     ['PEDIDOS', 'Add', 1],
     ['DETALLES PEDIDO', 'Add', 4],
     ['PEDIDOS', 'Generar PDF', 1],
   ]);
-  assert.ok(api.enviado[2].Rows.every((d) => d.PE === 'PE2010abcdef01'));
-  assert.deepEqual(api.enviado[3].Rows, [{ KEY: 'PE2010abcdef01' }]);
+  const ped = api.enviado[2].Rows[0];
+  assert.equal(ped.KEY, r.key);
+  assert.equal(ped.PE, 'PE2010');
+  assert.equal(ped['NUMERO CONSECUTIVO'], 2010);
+  assert.ok(api.enviado[3].Rows.every((d) => d.PE === r.key));
+  assert.deepEqual(api.enviado[4].Rows, [{ KEY: r.key }]);
 
   const texto = mensajeCreado(v.pedido, r);
   assert.match(texto, /✅ Pedido \*PE2010\* creado/);
   assert.match(mensajeConfirmar(v), /Reacciona con ✅/);
 });
 
-test('si AppSheet no devuelve KEY, falla claramente (nada de detalles huérfanos)', async () => {
+test('si no puede leer el consecutivo, no escribe nada', async () => {
   const v = validar(leerMensaje(MENSAJE_FORMATO), cat, 'JULIAN RODRIGUEZ');
   const a = armar(v.pedido, { ahora });
   const api = new AppSheet({ ensayo: true });
-  api.llamar = async (tabla, action, rows) => ({ Rows: rows });
-  await assert.rejects(registrarEnAppSheet(api, a), /no devolvió la KEY/);
+  api.llamar = async function (tabla, action, rows) { this.enviado.push({ tabla, Action: action }); return { Rows: [] }; };
+  await assert.rejects(registrarEnAppSheet(api, a), /último consecutivo/);
+  assert.equal(api.enviado.filter((e) => e.Action === 'Add').length, 0);
 });

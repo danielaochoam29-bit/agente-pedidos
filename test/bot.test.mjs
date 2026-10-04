@@ -38,8 +38,8 @@ function appsheetFalso() {
   const objetos = (t) => t.slice(1).map((f) => Object.fromEntries(t[0].map((c, i) => [c, f[i]])));
   api.llamar = async function (tabla, action, rows) {
     this.enviado.push({ tabla, Action: action, Rows: rows });
+    if (action === 'Find' && tabla === 'PEDIDOS') return { Rows: [{ KEY: 'PE2009863a4589', PE: 'PE2009', 'NUMERO CONSECUTIVO': '2009' }] };
     if (action === 'Find') return { Rows: objetos({ PRODUCTOS, CLIENTES, MUNICIPIOS }[tabla]) };
-    if (tabla === 'PEDIDOS' && action === 'Add') return { Rows: [{ ...rows[0], KEY: 'PE2010abcdef01', PE: 'PE2010' }] };
     return { Rows: rows };
   };
   return api;
@@ -87,6 +87,8 @@ test('flujo completo: pedido → faltan → respuesta en hilo → confirmar → 
   ]);
   const ped = api.enviado.find((e) => e.tabla === 'PEDIDOS' && e.Action === 'Add').Rows[0];
   assert.equal(ped['TOTAL QTY'], 100);
+  assert.equal(ped.PE, 'PE2010');
+  assert.match(ped.KEY, /^PE2010[0-9a-f]{8}$/);
   assert.match(ped.FECHA, /^\d{4}-\d{2}-\d{2}$/);
 
   // Un segundo ✅ no crea nada más
