@@ -65,3 +65,11 @@ test('respuestas libres del asesor: minúsculas, "unidades", negrita de Slack, "
   assert.deepEqual(leerItems('b02p x 50 bolsas'), [{ ref: 'B02P', cantidad: 50, precio: null }]);
   assert.deepEqual(leerItems('Carrera 28 # 12-60\nC.C 1066349068\nN 3246213328'), []);
 });
+
+test('cédula y celular con etiqueta pegada (C.C, N)', () => {
+  const r = leerMensaje('Luis Angel López Rincon\nC.C 1066349068\nN 3246213328\nCarrera 28 # 12-60 Agustín codazzi, Con mucho gusto:\n• *B04B* — 100 und × $1.100');
+  assert.equal(r.cliente.nombre, 'Luis Angel López Rincon');
+  assert.equal(r.cliente.nit, '1066349068');
+  assert.equal(r.cliente.celular, '3246213328');
+  assert.match(r.cliente.direccion, /^Carrera 28/);
+});

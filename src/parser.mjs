@@ -134,7 +134,9 @@ function adivinarCliente(r, lineas) {
     .map((l) => l.replace(/,?\s*con mucho gusto.*$/i, '').trim())
     .filter(Boolean);
 
-  for (const l of candidatas) {
+  for (const linea of candidatas) {
+    // "C.C 1066349068", "N 3246213328", "Cel: 300…", "Nit 900…": quitar la etiqueta pegada al número.
+    const l = linea.replace(/^(c\.?\s?c\.?|cc|nit|n[°º.]?|no\.?|cel(ular)?|tel(efono)?|whatsapp|wa|celular)\s*[:.]?\s*(?=[\d+(])/i, '');
     const d = digitos(l);
     const soloNumero = /^[\d\s.,'’+()-]+$/.test(l);
     if (soloNumero && !r.cliente.celular && /^(57)?3\d{9}$/.test(d)) {
