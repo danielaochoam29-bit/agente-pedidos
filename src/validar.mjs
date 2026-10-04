@@ -10,7 +10,7 @@
  */
 
 import { VALORES, DEFAULTS, VOLUMEN_DESDE, VENDEDORES } from './config.mjs';
-import { elegir, normalizar, nombreCliente, cop } from './texto.mjs';
+import { elegir, normalizar, nombreCliente, cop, canalDe } from './texto.mjs';
 
 /** Persona de Slack (nombre o correo) → VENDEDOR. null si no está en el mapa. */
 export function vendedorDe(remitente) {
@@ -83,7 +83,7 @@ export function validar(extraido, catalogo, remitente) {
   let tipo = existente
     ? String(existente['TIPO CLIENTE'] || 'FINAL').trim().toUpperCase()
     : (elegir(c.tipo, VALORES.TIPO_CLIENTE) ?? (/distribuidor/i.test(c.tipo ?? '') ? 'DISTRIBUIDOR' : 'FINAL'));
-  let canal = existente ? existente.CANAL : elegir(c.canal, VALORES.CANAL);
+  let canal = existente ? existente.CANAL : (elegir(c.canal, VALORES.CANAL) ?? canalDe(c.canal));
   let clienteDe = existente ? existente['CLIENTE DE'] : elegir(c.clienteDe, VALORES.CLIENTE_DE);
   // Regla fija: si el canal es Página Web, el cliente siempre es de DANIELA, diga lo que diga el asesor.
   if (!existente && canal === 'Página Web') {
@@ -91,7 +91,7 @@ export function validar(extraido, catalogo, remitente) {
     clienteDe = 'DANIELA';
   }
   if (!existente) {
-    if (!canal) faltantes.push(c.canal ? `Canal "${c.canal}" no es válido. Opciones: WhatsApp, Instagram, Página Web` : 'Canal (WhatsApp, Instagram o Página Web)');
+    if (!canal) faltantes.push(c.canal ? `Canal "${c.canal}" no es válido. Opciones: WhatsApp, Instagram, Página Web` : 'Canal (WhatsApp, Instagram o Página Web; vale wpp, ig o pw)');
     if (!clienteDe) faltantes.push(c.clienteDe ? `"Cliente de" "${c.clienteDe}" no es válido. Opciones: ARQUI, DANIELA, JULIAN` : 'Cliente de (ARQUI, DANIELA o JULIAN)');
   }
 

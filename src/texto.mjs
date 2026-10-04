@@ -74,3 +74,16 @@ export function elegir(texto, lista) {
   if (!t) return null;
   return lista.find((v) => normalizar(v) === t) ?? null;
 }
+
+/**
+ * Canal de venta escrito de cualquier forma: "wpp", "whatsapp", "wa", "ig", "insta",
+ * "pw", "página web", "web" → WhatsApp | Instagram | Página Web (o null).
+ */
+export function canalDe(texto) {
+  const t = normalizar(texto);
+  if (!t) return null;
+  if (/^(wpp|wsp|wp|wa|whats|whatsapp|whatsap|what?s ?app)$/.test(t) || /whats/.test(t)) return 'WhatsApp';
+  if (/^(ig|insta|instagram)$/.test(t) || /insta/.test(t)) return 'Instagram';
+  if (/^(pw|web|pagina web|pag web|pagina)$/.test(t) || /web/.test(t)) return 'Página Web';
+  return null;
+}

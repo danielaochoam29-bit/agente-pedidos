@@ -144,7 +144,7 @@ function adivinarCliente(r, lineas) {
     .map((l) => l.replace(/,?\s*con mucho gusto.*$/i, '').trim())
     .filter(Boolean);
 
-  const PALABRAS_CLAVE = /\b(contra ?entrega|pago|env[ií]o|flete|canal|cliente de|bodega|whatsapp|instagram|p[aá]gina web|distribuidor|final|muestras|descuento|notas?|cantidad|und|unidades|subtotal|total|cotizaci[oó]n|respuesta del asesor)\b/i;
+  const PALABRAS_CLAVE = /\b(contra ?entrega|pago|env[ií]o|flete|canal|cliente de|bodega|whatsapp|wpp|wsp|ig|insta|instagram|p[aá]gina web|pw|distribuidor|final|muestras|descuento|notas?|cantidad|und|unidades|subtotal|total|cotizaci[oó]n|respuesta del asesor)\b/i;
   const marcar = (k) => { if (!r.adivinados.includes(k)) r.adivinados.push(k); };
   for (const linea of candidatas) {
     // "C.C 1066349068", "N 3246213328", "Cel: 300…", "Nit 900…": quitar la etiqueta pegada al número.
@@ -197,6 +197,13 @@ export function leerMensaje(texto) {
   if (menciones.length) {
     const u = menciones.at(-1)[1].toLowerCase().replace(/\s+/g, '');
     r.pagoDelEnvio = u === 'sincobro' ? 'PAGO EN BODEGA SIN COBRO AL CLIENTE' : u === 'concobro' ? 'PAGO EN BODEGA CON COBRO AL CLIENTE' : 'CONTRAENTREGA';
+  }
+
+  // Canal en texto libre o abreviado: "wpp" = WhatsApp, "ig" = Instagram, "pw" = Página Web. La última mención manda.
+  const canales = [...texto.matchAll(/(?<![\w@])(wpp|wsp|whatsapp|whats ?app|ig|insta|instagram|pw|p[aá]g(?:ina)? web)(?![\w.])/gi)];
+  if (canales.length) {
+    const u = canales.at(-1)[1].toLowerCase();
+    r.cliente.canal = /^(ig|insta)/.test(u) ? 'Instagram' : /^(pw|p[aá]g)/.test(u) ? 'Página Web' : 'WhatsApp';
   }
 
   const corte = libres.findIndex((l) => /^=== Respuesta/.test(l));

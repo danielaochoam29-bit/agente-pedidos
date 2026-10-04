@@ -197,3 +197,12 @@ test('contraentrega o sin cobro al cliente no admiten valor del envío', () => {
   const cero = validar(leerMensaje(`${base}\nPago del envío: contraentrega\nValor del envío: 0`), cat, 'daniela ochoa');
   assert.equal(cero.estado, 'ok', JSON.stringify(cero));
 });
+
+test('canal escrito como wpp / ig / pw se registra con el nombre completo', () => {
+  const base = 'Cliente: Nuevo Prueba\nCédula: 11223344\nCelular: 3001112233\nDirección: Calle 1 # 2-3\nCiudad: Bucaramanga, Santander\nCliente de: ARQUI\nPago del envío: contraentrega\n* B04B — 25 und × $1.220';
+  assert.equal(validar(leerMensaje(base + '\nCanal: wpp'), cat, 'daniela ochoa').pedido.cliente.canal, 'WhatsApp');
+  assert.equal(validar(leerMensaje(base + '\nCanal: ig'), cat, 'daniela ochoa').pedido.cliente.canal, 'Instagram');
+  const pw = validar(leerMensaje(base + '\nCanal: pw'), cat, 'daniela ochoa');
+  assert.equal(pw.pedido.cliente.canal, 'Página Web');
+  assert.equal(pw.pedido.cliente.clienteDe, 'DANIELA');
+});

@@ -77,6 +77,7 @@ Reglas:
 - Las referencias son códigos como B01TG, B02P, B04MA. La cantidad es en unidades. "25 und × $1.090" = cantidad 25, precio 1090.
 - Si habla de paquetes sin decir cuántas unidades son, deja cantidad "" (el bot preguntará).
 - tipo: "DISTRIBUIDOR" solo si el texto lo dice; si no lo menciona, "" (el bot asume FINAL).
+- canal: "wpp", "wsp" o "whats" = "WhatsApp"; "ig" o "insta" = "Instagram"; "pw" o "web" = "Página Web".
 - "Valor del envío: por confirmar" → valorEnvio "".
 - pagoContraentrega es SI únicamente si dice que la mercancía (no el envío) se paga al recibir.
 - Si menciona "contraentrega" refiriéndose al envío, pagoDelEnvio = CONTRAENTREGA.`;

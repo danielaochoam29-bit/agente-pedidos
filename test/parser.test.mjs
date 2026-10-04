@@ -104,3 +104,12 @@ test('quitar una referencia en el hilo', () => {
   assert.deepEqual(leerItems(base + '\nquita la B02P').map((i) => i.ref), ['B01T']);
   assert.deepEqual(leerItems(base + '\nsin b02p\nb02p 50 und').map((i) => [i.ref, i.cantidad]), [['B01T', 25], ['B02P', 50]]);
 });
+
+test('canal abreviado: wpp = WhatsApp, ig = Instagram, pw = Página Web', () => {
+  assert.equal(leerMensaje('Canal: wpp').cliente.canal, 'WhatsApp');
+  assert.equal(leerMensaje('cliente llegó por ig, cliente de ARQUI').cliente.canal, 'Instagram');
+  assert.equal(leerMensaje('Canal: WhatsApp\n\n=== Respuesta del asesor 1 ===\npw').cliente.canal, 'Página Web');
+  const r = leerMensaje('=== Mensaje original ===\nPepe Prueba\n3001234567\nb01b 25 und\n\n=== Respuesta del asesor 1 ===\nwpp');
+  assert.equal(r.cliente.canal, 'WhatsApp');
+  assert.equal(r.cliente.nombre, 'Pepe Prueba');
+});
