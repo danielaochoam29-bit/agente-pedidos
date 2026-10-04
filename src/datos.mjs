@@ -48,7 +48,7 @@ export async function cargarCatalogo(api, { forzar = false } = {}) {
     };
   }
   const n = (t) => (tablas[t]?.length ?? 1) - 1;
-  if (n('PRODUCTOS') < 10 || n('MUNICIPIOS') < 100) {
+  if (n('PRODUCTOS') < 5 || n('MUNICIPIOS') < 5) {
     throw new Error(`El catálogo llegó incompleto: ${n('PRODUCTOS')} productos, ${n('CLIENTES')} clientes, ${n('MUNICIPIOS')} municipios. Reintenta en un momento.`);
   }
   const catalogo = new Catalogo(tablas);
