@@ -154,3 +154,33 @@ test('firma de Slack', () => {
   assert.ok(!firmaValida({ cuerpo: cuerpo + ' ', timestamp: ts, firma, secreto }));
   assert.ok(!firmaValida({ cuerpo, timestamp: String(Number(ts) - 1000), firma, secreto }));
 });
+
+test('asesor en apuros: número suelto tras la pregunta de cantidad, y "si" en el hilo confirma', async () => {
+  const { slack, api, bot } = nuevoBot();
+  const msg = MENSAJE_FORMATO.replace('B01T — 25 und × $1.090', 'B01T — 20 und × $1.090');
+  const raiz = slack.raiz(msg);
+  await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: raiz, text: msg });
+  assert.match(slack.textosBot(raiz).at(-1), /B01T se vende en paquetes de 25/);
+
+  const r = slack.respuesta(raiz, '25, pago del envío en bodega sin cobro al cliente');
+  await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: r, thread_ts: raiz, text: '25, pago del envío en bodega sin cobro al cliente' });
+  const resumen = slack.textosBot(raiz).at(-1);
+  assert.match(resumen, /^Esto es lo que voy a registrar/);
+  assert.match(resumen, /B01T\* — 25 und/);
+  assert.match(resumen, /PAGO EN BODEGA SIN COBRO AL CLIENTE/);
+
+  const si = slack.respuesta(raiz, 'si');
+  await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: si, thread_ts: raiz, text: 'si' });
+  assert.match(slack.textosBot(raiz).at(-1), /^✅ Pedido \*PE2010\* creado/);
+  assert.equal(api.enviado.filter((e) => e.Action === 'Add').length, 3);
+});
+
+test('"si" sin resumen previo no crea nada', async () => {
+  const { slack, api, bot } = nuevoBot();
+  const raiz = slack.raiz(MENSAJE_LIBRE);
+  await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: raiz, text: MENSAJE_LIBRE });
+  const si = slack.respuesta(raiz, 'ok');
+  await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: si, thread_ts: raiz, text: 'ok' });
+  assert.match(slack.textosBot(raiz).at(-1), /Todavía no hay un resumen/);
+  assert.equal(api.enviado.filter((e) => e.Action === 'Add').length, 0);
+});

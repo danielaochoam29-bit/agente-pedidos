@@ -60,6 +60,13 @@ export class Bot {
       if (/^(no|cancelar|cancela|cancelado)\b/.test(texto)) {
         return this.slack.responder(event.channel, raiz, '🚫 Cancelado. Si quieres registrarlo, envía el pedido en un mensaje nuevo.');
       }
+      if (/^(si|sí|ok|dale|listo|confirmo|confirmar|confirmado|crealo|créalo|crear|hazlo|de una|va)[\s!.]*$/.test(texto)) {
+        const hilo = await this.slack.hilo(event.channel, raiz);
+        const yo = await this.miId();
+        const ultima = [...hilo].reverse().find((m) => (m.bot_id || m.user === yo) && m.text?.startsWith(MARCA_CONFIRMAR));
+        if (!ultima) return this.slack.responder(event.channel, raiz, 'Todavía no hay un resumen que confirmar; completa primero lo que falta.');
+        return this.confirmar({ channel: event.channel, raiz, user: event.user, tsConfirmacion: ultima.ts, hilo });
+      }
     } else {
       if (!pareceUnPedido(event.text)) return; // charla normal en el canal
       await this.slack.reaccionar(event.channel, event.ts, 'eyes');
@@ -82,13 +89,18 @@ export class Bot {
     const objetivo = mensajes.find((m) => m.ts === ts);
     if (!objetivo || !objetivo.text?.startsWith(MARCA_CONFIRMAR)) return;
     const raiz = objetivo.thread_ts ?? ts;
+    return this.confirmar({ channel, raiz, user: event.user, tsConfirmacion: ts });
+  }
 
-    const quien = await this.slack.usuario(event.user);
+  /** Crea el pedido tras un ✅ (reacción o "si" en el hilo) sobre el último resumen. */
+  async confirmar({ channel, raiz, user, tsConfirmacion, hilo = null }) {
+    const ts = tsConfirmacion;
+    const quien = await this.slack.usuario(user);
     if (!vendedorDe(quien.nombre) && !vendedorDe(quien.correo)) {
       return this.slack.responder(channel, raiz, `Solo un asesor registrado puede confirmar (reaccionó ${quien.nombre}).`);
     }
 
-    const hilo = await this.slack.hilo(channel, raiz);
+    hilo ??= await this.slack.hilo(channel, raiz);
     const mios = hilo.filter((m) => m.bot_id || m.user === this.botUserId);
     if (mios.some((m) => m.text?.startsWith(MARCA_CREADO) || m.text?.startsWith(MARCA_CREANDO))) return;
     // Solo vale el ✅ sobre la ÚLTIMA confirmación (si el asesor corrigió datos, hay una más nueva)
@@ -132,7 +144,7 @@ export class Bot {
     const humanos = hilo.filter((m) => !m.bot_id && m.user !== yo && !m.subtype);
     const original = humanos.find((m) => m.ts === raiz) ?? humanos[0];
     if (!original) return null;
-    const texto = humanos.map((m) => m.text ?? '').join('\n');
+    const texto = textoDelHilo(hilo, humanos, yo);
     const autor = await this.slack.usuario(original.user);
     const remitente = vendedorDe(autor.nombre) ? autor.nombre : autor.correo;
 
@@ -144,4 +156,34 @@ export class Bot {
 /** Un mensaje raíz se trata como pedido si trae una referencia con cantidad o la palabra PEDIDO. */
 export function pareceUnPedido(texto = '') {
   return /\bpedido\b/i.test(texto) || /\b[A-Z]{1,4}\d{1,4}[A-Z0-9-]{0,5}\b[\s\S]{0,120}?\d+\s*(und|unidades|u\b)/i.test(texto);
+}
+
+/**
+ * Junta el mensaje original y las respuestas del asesor, en orden, con separadores
+ * (así la IA sabe que lo de después corrige lo de antes). Si el bot acababa de
+ * preguntar la cantidad de UNA referencia y el asesor contesta con un número suelto
+ * ("25" o "25, pago en bodega…"), ese número se convierte en "REF 25 und".
+ */
+export function textoDelHilo(hilo, humanos, yo) {
+  const partes = [];
+  let pendiente = null; // referencia cuya cantidad preguntó el bot en su último mensaje
+  let n = 0;
+  for (const m of hilo) {
+    const esBot = m.bot_id || m.user === yo;
+    if (esBot) {
+      const refs = [...(m.text ?? '').matchAll(/•\s*\*?([A-Z0-9-]{3,10})\*?\s+se vende en paquetes de/g)].map((x) => x[1]);
+      pendiente = m.text?.startsWith('⚠️') && refs.length === 1 ? refs[0] : null;
+      continue;
+    }
+    if (!humanos.includes(m)) continue;
+    let t = m.text ?? '';
+    if (n > 0 && pendiente) {
+      const num = /^\s*(\d{1,6})\s*(?:und|unds|unid|unidades|u\b)?\s*(?:[,.;]|$)/i.exec(t);
+      if (num) t = `${pendiente} ${num[1]} und` + t.slice(num[0].length).replace(/^\s*[,.;]?/, ', ');
+    }
+    partes.push(n === 0 ? `=== Mensaje original ===\n${t}` : `=== Respuesta del asesor ${n} (corrige o completa lo anterior) ===\n${t}`);
+    n++;
+    pendiente = null;
+  }
+  return partes.join('\n\n');
 }

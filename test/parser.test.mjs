@@ -45,7 +45,7 @@ test('formato recomendado: todos los campos etiquetados', () => {
   assert.equal(r.cliente.tipo, 'FINAL');
   assert.equal(r.cliente.canal, 'WhatsApp');
   assert.equal(r.cliente.clienteDe, 'ARQUI');
-  assert.equal(r.pagoDelEnvio, 'Pago en bodega con cobro al cliente');
+  assert.equal(r.pagoDelEnvio, 'PAGO EN BODEGA CON COBRO AL CLIENTE');
   assert.equal(r.valorEnvio, null);
   assert.equal(r.notasDespacho, 'Entregar en portería');
   assert.equal(r.items.length, 4);
@@ -72,4 +72,12 @@ test('cédula y celular con etiqueta pegada (C.C, N)', () => {
   assert.equal(r.cliente.nit, '1066349068');
   assert.equal(r.cliente.celular, '3246213328');
   assert.match(r.cliente.direccion, /^Carrera 28/);
+});
+
+test('pago del envío en texto libre: la última mención manda', () => {
+  assert.equal(leerMensaje('Pago del envío: Pago en bodega con cobro al cliente\n25, pago del envío en bodega sin cobro al cliente').pagoDelEnvio, 'PAGO EN BODEGA SIN COBRO AL CLIENTE');
+  assert.equal(leerMensaje('el flete va contraentrega').pagoDelEnvio, 'CONTRAENTREGA');
+  const r = leerMensaje('Pago contraentrega: NO\nMercancía contraentrega no');
+  assert.equal(r.pagoDelEnvio, null);
+  assert.equal(r.pagoContraentrega, 'NO');
 });

@@ -130,7 +130,7 @@ const PISTAS_DIRECCION = /\b(calle|cll|cl|carrera|cra|cr|kr|kra|avenida|av|avda|
 function adivinarCliente(r, lineas) {
   const candidatas = lineas
     .map((l) => l.trim())
-    .filter((l) => l && !LINEA_REF.test(l) && !CANT_PRECIO.test(l) && !/^(subtotal|total|valor del env[ií]o)/i.test(l))
+    .filter((l) => l && !/^===/.test(l) && !LINEA_REF.test(l) && !CANT_PRECIO.test(l) && !/^(subtotal|total|valor del env[ií]o)/i.test(l))
     .map((l) => l.replace(/,?\s*con mucho gusto.*$/i, '').trim())
     .filter(Boolean);
 
@@ -178,9 +178,13 @@ export function leerMensaje(texto) {
   const sub = /subtotal\s*:?\s*\$?\s*([\d.,]+)/i.exec(texto);
   if (sub && r.subtotalDeclarado == null) r.subtotalDeclarado = numero(sub[1]);
 
-  if (/contraentrega/i.test(texto) && r.pagoContraentrega == null && r.pagoDelEnvio == null) {
-    // "contraentrega" suelto en el texto: lo más probable es que hable del envío.
-    r.pagoDelEnvio = 'CONTRAENTREGA';
+  // Pago del envío escrito de cualquier forma ("el flete lo paga en bodega sin cobro", "envío contraentrega"):
+  // vale la ÚLTIMA mención del texto, así una respuesta en el hilo corrige al mensaje original.
+  // "Pago contraentrega: NO" o "mercancía contraentrega" hablan del pago de la mercancía, no del envío.
+  const menciones = [...texto.matchAll(/(sin cobro|con cobro|(?<!pago )(?<!mercanc[ií]a )(?<!mercancia )contra ?entrega)/gi)];
+  if (menciones.length) {
+    const u = menciones.at(-1)[1].toLowerCase().replace(/\s+/g, '');
+    r.pagoDelEnvio = u === 'sincobro' ? 'PAGO EN BODEGA SIN COBRO AL CLIENTE' : u === 'concobro' ? 'PAGO EN BODEGA CON COBRO AL CLIENTE' : 'CONTRAENTREGA';
   }
 
   adivinarCliente(r, libres);
