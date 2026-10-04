@@ -10,10 +10,12 @@ export class Slack {
   }
 
   async llamar(metodo, params = {}) {
+    // Formulario, no JSON: métodos de lectura como conversations.replies no aceptan cuerpo JSON.
+    const body = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]));
     const res = await this.fetchFn(`https://slack.com/api/${metodo}`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify(params),
+      headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
     });
     const json = await res.json();
     if (!json.ok) throw new Error(`Slack ${metodo}: ${json.error}`);
