@@ -111,6 +111,37 @@ export async function dispararPdf(api, key) {
   return null;
 }
 
+/** La fila del pedido por su PE (p. ej. PE2011). */
+export async function pedidoPorPe(api, pe) {
+  const r = await api.buscar(TABLAS.PEDIDOS, `FILTER("PEDIDOS", [PE] = "${pe}")`);
+  const filas = Array.isArray(r) ? r : r?.Rows ?? [];
+  return filas[0] ?? null;
+}
+
+/** Los detalles de un pedido (por la KEY del pedido). */
+export async function detallesDe(api, key) {
+  const r = await api.buscar(TABLAS.DETALLES, `FILTER("DETALLES PEDIDO", [PE] = "${key}")`);
+  return Array.isArray(r) ? r : r?.Rows ?? [];
+}
+
+/**
+ * Actualiza un pedido ya creado: edita la cabecera (misma KEY, PE y consecutivo),
+ * borra sus detalles y los vuelve a crear. No toca CLIENTES.
+ * Devuelve { key, pe }.
+ */
+export async function actualizarEnAppSheet(api, pe, armado) {
+  const fila = await pedidoPorPe(api, pe);
+  if (!fila?.KEY) throw new Error(`No encontré el pedido ${pe} en la app.`);
+  const key = fila.KEY;
+  const { KEY, PE, 'NUMERO CONSECUTIVO': _c, ...campos } = armado.pedido;
+  await api.llamar(TABLAS.PEDIDOS, 'Edit', [{ KEY: key, ...campos }]);
+  const viejos = await detallesDe(api, key);
+  if (viejos.length) await api.llamar(TABLAS.DETALLES, 'Delete', viejos.map((d) => ({ KEY: d.KEY })));
+  const detalles = armado.detalles.map((d) => ({ ...d, PE: key }));
+  await api.agregar(TABLAS.DETALLES, detalles);
+  return { key, pe };
+}
+
 /** La fila del pedido por su KEY (una sola fila). */
 export async function filaPedidoPorKey(api, key) {
   const r = await api.buscar(TABLAS.PEDIDOS, `FILTER("PEDIDOS", [KEY] = "${key}")`);

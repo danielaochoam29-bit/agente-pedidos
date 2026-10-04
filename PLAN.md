@@ -549,3 +549,15 @@ Ejemplo con dos pedidos en cola:
 - API key de Claude recibida por chat (no se guarda en el repo; va como secreto del servidor; se
   recomienda rotarla cuando el bot esté en marcha).
 - Guía de configuración para AppSheet, Slack y Google: [`GUIA-CONFIGURACION.md`](GUIA-CONFIGURACION.md).
+
+### 11.8 Un hilo = un pedido; cambios después de crear (2026-10-05)
+
+- Mientras el pedido no exista, el ✅ sobre el resumen lo **crea**.
+- Una vez creado, cualquier respuesta en el mismo hilo propone **actualizar ese mismo pedido**
+  (misma KEY y PE): el bot muestra "Esto es lo que voy a actualizar en el pedido PEXXXX", el ✅
+  edita la cabecera, reemplaza los detalles y luego pregunta "¿Genero el PDF de nuevo?".
+  Nunca se crea un segundo pedido desde un hilo.
+- "quita B01N" / "sin B01N" retira una referencia; una mención posterior la vuelve a incluir.
+- El PDF se dispara poniendo ESTATUS = EN PROCESO (invocar la acción por API no la ejecuta) y se
+  sube al hilo como `PE2011_NOMBRE CLIENTE_2026-10-05 02-28-15.pdf`.
+- Slack guarda los emojis como texto (`:white_check_mark:`); las marcas del bot se leen sin emoji.

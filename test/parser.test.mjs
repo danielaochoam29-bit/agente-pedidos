@@ -98,3 +98,9 @@ test('la IA corrige un nombre adivinado por las reglas', async () => {
   const r = combinar(reglas, { cliente: { nombre: 'Pepe Pérez', nit: '', celular: '3001234567', direccion: '', ciudad: '', tipo: '', canal: '', clienteDe: '', marca: '' }, items: [] });
   assert.equal(r.cliente.nombre, 'Pepe Pérez');
 });
+
+test('quitar una referencia en el hilo', () => {
+  const base = '* B01T — 25 und\n* B02P — 25 und';
+  assert.deepEqual(leerItems(base + '\nquita la B02P').map((i) => i.ref), ['B01T']);
+  assert.deepEqual(leerItems(base + '\nsin b02p\nb02p 50 und').map((i) => [i.ref, i.cantidad]), [['B01T', 25], ['B02P', 50]]);
+});

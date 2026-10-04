@@ -114,9 +114,18 @@ export function leerItems(texto) {
     const sc = SOLO_CANT.exec(resto) ?? (lineas[i + 1] && !LINEA_REF.test(lineas[i + 1]) ? SOLO_CANT.exec(lineas[i + 1]) : null);
     if (sc) items.push({ ref, cantidad: numero(sc[1]), precio: null });
   }
+  // "quita B01N", "sin B01N", "elimina la B01N": la referencia sale del pedido (si aparece después, vuelve a entrar).
+  const quitar = [...texto.matchAll(/\b(?:quita|quitar|quítame|quitame|elimina|eliminar|borra|borrar|sin|retira|retirar)\b\s*(?:la|el|las|los)?\s*\*?([A-Z]{1,4}\d{1,4}[A-Z0-9-]{0,5})\b/gi)]
+    .map((m) => ({ ref: m[1].toUpperCase(), fin: m.index + m[0].length }));
+  const posItem = (ref) => texto.toUpperCase().lastIndexOf(ref);
   // Si una referencia aparece varias veces (p. ej. el asesor corrigió la cantidad en el hilo), vale la última.
   const porRef = new Map();
   for (const it of items) porRef.set(it.ref, { ...porRef.get(it.ref), ...it, precio: it.precio ?? porRef.get(it.ref)?.precio ?? null });
+  for (const q of quitar) {
+    const ultimaMencion = posItem(q.ref);
+    if (ultimaMencion < q.fin) porRef.delete(q.ref); // no vuelve a aparecer después de "quita …"
+
+  }
   return [...porRef.values()];
 }
 

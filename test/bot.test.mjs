@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Bot, pareceUnPedido } from '../src/bot.mjs';
+import { Bot, pareceUnPedido, sinEmoji, peDeMensaje, nombreArchivoPdf } from '../src/bot.mjs';
 import { AppSheet } from '../src/appsheet.mjs';
 import { firmaValida } from '../src/slack.mjs';
 import { MENSAJE_FORMATO, MENSAJE_LIBRE, PRODUCTOS, CLIENTES, MUNICIPIOS } from './simulado.mjs';
@@ -16,7 +16,9 @@ class SlackFalso {
   async llamar(m) { if (m === 'auth.test') return { user_id: BOT }; throw new Error('no simulado: ' + m); }
   async responder(channel, thread_ts, text) {
     const ts = `${thread_ts}.${++this.n}`;
-    this.hilos.get(thread_ts).push({ ts, thread_ts, text, user: BOT, bot_id: 'B1' });
+    // Slack guarda los emojis como :shortcodes:
+    const guardado = text.replace('✅', ':white_check_mark:').replace('⏳', ':hourglass_flowing_sand:').replace('📄', ':page_facing_up:').replace('⚠️', ':warning:').replace('❌', ':x:');
+    this.hilos.get(thread_ts).push({ ts, thread_ts, text: guardado, user: BOT, bot_id: 'B1' });
     return { ts };
   }
   async reaccionar(channel, ts, name) { this.reacciones.push([ts, name]); }
@@ -41,9 +43,11 @@ class SlackFalso {
 function appsheetFalso() {
   const api = new AppSheet({ ensayo: false });
   const objetos = (t) => t.slice(1).map((f) => Object.fromEntries(t[0].map((c, i) => [c, f[i]])));
-  api.llamar = async function (tabla, action, rows) {
+  api.llamar = async function (tabla, action, rows, props) {
     this.enviado.push({ tabla, Action: action, Rows: rows });
+    if (action === 'Find' && tabla === 'PEDIDOS' && /\[PE\] = "PE2010"/.test(props?.Selector ?? '')) return { Rows: [{ KEY: 'PE2010abcdef01', PE: 'PE2010', CLIENTE: 'MARIA PRUEBA GOMEZ', NOTAS: '----' }] };
     if (action === 'Find' && tabla === 'PEDIDOS') return { Rows: [{ KEY: 'PE2009863a4589', PE: 'PE2009', 'NUMERO CONSECUTIVO': '2009' }] };
+    if (action === 'Find' && tabla === 'DETALLES PEDIDO') return { Rows: [{ KEY: 'd1' }, { KEY: 'd2' }] };
     if (action === 'Find') return { Rows: objetos({ PRODUCTOS, CLIENTES, MUNICIPIOS }[tabla]) };
     return { Rows: rows };
   };
@@ -89,10 +93,10 @@ test('flujo completo: pedido → faltan → respuesta en hilo → confirmar → 
   // Julián confirma
   await bot.manejar({ type: 'reaction_added', reaction: 'white_check_mark', user: JULIAN, item: { channel: 'C1', ts: confirmacion.ts } });
   const textos = slack.textosBot(raiz);
-  assert.match(textos.at(-3), /^⏳ Creando el pedido/);
-  assert.match(textos.at(-2), /^✅ Pedido \*PE2010\* creado/);
-  assert.match(textos.at(-1), /PDF del pedido \*PE2010\* generado.*\[archivo PE2010\.pdf\]/);
-  assert.deepEqual(slack.archivos, [{ nombre: 'PE2010.pdf', bytes: 17 }]);
+  assert.match(textos.at(-3), /Creando el pedido/);
+  assert.match(textos.at(-2), /Pedido \*PE2010\* creado/);
+  assert.match(textos.at(-1), /PDF del pedido \*PE2010\* generado.*\[archivo PE2010_MARIA PRUEBA GOMEZ_\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}\.pdf\]/);
+  assert.equal(slack.archivos[0].bytes, 17);
   assert.deepEqual(api.enviado.filter((e) => e.Action !== 'Find').map((e) => [e.tabla, e.Action, e.Rows.length]), [
     ['CLIENTES', 'Add', 1], ['PEDIDOS', 'Add', 1], ['DETALLES PEDIDO', 'Add', 4], ['PEDIDOS', 'Edit', 1],
   ]);
@@ -107,10 +111,26 @@ test('flujo completo: pedido → faltan → respuesta en hilo → confirmar → 
   await bot.manejar({ type: 'reaction_added', reaction: 'white_check_mark', user: JULIAN, item: { channel: 'C1', ts: confirmacion.ts } });
   assert.equal(api.enviado.length, antes);
 
-  // Una respuesta posterior en el hilo avisa que ya está creado
-  const r2 = slack.respuesta(raiz, 'y cambia la dirección');
-  await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: r2, thread_ts: raiz, text: 'y cambia la dirección' });
-  assert.match(slack.textosBot(raiz).at(-1), /ya fue creado/);
+  // Una respuesta posterior en el hilo propone ACTUALIZAR el mismo pedido (nunca crea otro)
+  const r2 = slack.respuesta(raiz, 'Dirección: Calle 9 # 9-99\nquita B02P');
+  await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: r2, thread_ts: raiz, text: 'Dirección: Calle 9 # 9-99\nquita B02P' });
+  const cambio = slack.hilos.get(raiz).at(-1);
+  assert.match(cambio.text, /^Esto es lo que voy a actualizar en el pedido \*PE2010\*/);
+  assert.match(cambio.text, /Calle 9 # 9-99/);
+  assert.ok(!/B02P/.test(cambio.text));
+  const antesUpd = api.enviado.length;
+  await bot.manejar({ type: 'reaction_added', reaction: 'white_check_mark', user: JULIAN, item: { channel: 'C1', ts: cambio.ts } });
+  const acciones = api.enviado.slice(antesUpd).map((e) => [e.tabla, e.Action, e.Rows.length]);
+  assert.deepEqual(acciones.filter((a) => a[1] !== 'Find'), [['PEDIDOS', 'Edit', 1], ['DETALLES PEDIDO', 'Delete', 2], ['DETALLES PEDIDO', 'Add', 3]]);
+  assert.equal(api.enviado.filter((e) => e.tabla === 'PEDIDOS' && e.Action === 'Add').length, 1); // sigue habiendo UN solo pedido
+  const t2 = slack.textosBot(raiz);
+  assert.match(t2.at(-2), /Pedido \*PE2010\* actualizado/);
+  assert.match(t2.at(-1), /^¿Genero el PDF de nuevo\? Pedido \*PE2010\*/);
+  // "si" a la pregunta del PDF: lo regenera y lo sube
+  const si2 = slack.respuesta(raiz, 'si');
+  await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: si2, thread_ts: raiz, text: 'si' });
+  assert.match(slack.textosBot(raiz).at(-1), /PDF del pedido \*PE2010\* generado/);
+  assert.equal(api.enviado.filter((e) => e.tabla === 'PEDIDOS' && e.Action === 'Add').length, 1);
 });
 
 test('mensaje completo: confirma de una; "no" cancela; ✅ sobre un resumen viejo no vale', async () => {
@@ -148,7 +168,7 @@ test('precio malo: error y no hay resumen', async () => {
   const msg = MENSAJE_FORMATO.replace('B01T — 25 und × $1.090', 'B01T — 25 und × $1.000');
   const raiz = slack.raiz(msg);
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: raiz, text: msg });
-  assert.match(slack.textosBot(raiz)[0], /^❌ No puedo crear el pedido/);
+  assert.match(slack.textosBot(raiz)[0], /No puedo crear el pedido/);
 });
 
 test('charla normal en el canal se ignora', async () => {
@@ -185,7 +205,7 @@ test('asesor en apuros: número suelto tras la pregunta de cantidad, y "si" en e
 
   const si = slack.respuesta(raiz, 'si');
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: si, thread_ts: raiz, text: 'si' });
-  assert.match(slack.textosBot(raiz).at(-2), /^✅ Pedido \*PE2010\* creado/);
+  assert.match(slack.textosBot(raiz).at(-2), /Pedido \*PE2010\* creado/);
   assert.equal(api.enviado.filter((e) => e.Action === 'Add').length, 3);
 });
 
@@ -195,7 +215,7 @@ test('"si" sin resumen previo no crea nada', async () => {
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: raiz, text: MENSAJE_LIBRE });
   const si = slack.respuesta(raiz, 'ok');
   await bot.manejar({ type: 'message', channel: 'C1', user: JULIAN, ts: si, thread_ts: raiz, text: 'ok' });
-  assert.match(slack.textosBot(raiz).at(-1), /Todavía no hay un resumen/);
+  assert.match(slack.textosBot(raiz).at(-1), /Todavía no hay nada que confirmar/);
   assert.equal(api.enviado.filter((e) => e.Action === 'Add').length, 0);
 });
 
@@ -215,4 +235,13 @@ test('si el PDF no llega a tiempo, avisa; si falta files:write, publica el enlac
   c = sinScope.slack.hilos.get(raiz).at(-1);
   await sinScope.bot.manejar({ type: 'reaction_added', reaction: 'white_check_mark', user: JULIAN, item: { channel: 'C1', ts: c.ts } });
   assert.match(sinScope.slack.textosBot(raiz).at(-1), /PDF del pedido \*PE2010\* generado\.\nhttps:\/\/ejemplo\/PE2010/);
+});
+
+test('marcas robustas: emojis como símbolo o como :shortcode:', () => {
+  assert.equal(sinEmoji(':white_check_mark: Pedido *PE2011* creado'), 'Pedido *PE2011* creado');
+  assert.equal(sinEmoji('✅ Pedido *PE2011* creado'), 'Pedido *PE2011* creado');
+  assert.equal(peDeMensaje(':white_check_mark: Pedido *PE2011* creado\nCliente: X'), 'PE2011');
+  assert.equal(peDeMensaje('✅ Pedido *PE2012* actualizado'), 'PE2012');
+  assert.equal(peDeMensaje(':warning: El pedido *PE2011* quedó creado'), null);
+  assert.match(nombreArchivoPdf('PE2011', 'MICHAEL STEVEN LOPEZ CORDOBA', new Date('2026-10-05T07:28:15Z')), /^PE2011_MICHAEL STEVEN LOPEZ CORDOBA_2026-10-05 02-28-15\.pdf$/);
 });

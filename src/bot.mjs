@@ -4,23 +4,48 @@
  * No guarda estado en ningún sitio: el hilo de Slack ES el estado. Ante
  * cualquier respuesta o reacción, relee el hilo completo, junta el mensaje
  * original con todas las respuestas de los asesores y vuelve a extraer y
- * validar. Si en el hilo ya hay un "✅ Pedido … creado" del bot, no hace nada.
+ * validar.
+ *
+ * Un hilo = un pedido. Antes de crearlo, el ✅ sobre el resumen lo crea.
+ * Después de creado, cualquier respuesta propone ACTUALIZAR ese mismo pedido;
+ * el ✅ lo actualiza en AppSheet y el bot pregunta si genera el PDF de nuevo.
+ *
+ * Ojo: Slack guarda los emojis como texto (":white_check_mark:"), así que las
+ * marcas se reconocen por su texto, no por el símbolo.
  */
 
 import { extraer } from './extraer.mjs';
 import { validar, vendedorDe } from './validar.mjs';
 import { armar } from './armar.mjs';
-import { registrarEnAppSheet, esperarPdf, descargarPdf } from './appsheet.mjs';
+import { registrarEnAppSheet, actualizarEnAppSheet, pedidoPorPe, dispararPdf, esperarPdf, descargarPdf } from './appsheet.mjs';
 import { cargarCatalogo } from './datos.mjs';
-import { mensajeConfirmar, mensajeFaltan, mensajeError, mensajeCreado, mensajeFallo, mensajePdfListo, mensajePdfNoListo } from './mensajes.mjs';
+import { fechaIso } from './texto.mjs';
+import {
+  mensajeConfirmar, mensajeConfirmarCambio, mensajeFaltan, mensajeError, mensajeCreado, mensajeActualizado,
+  mensajeFallo, mensajePdfListo, mensajePdfNoListo, mensajePreguntaPdf,
+} from './mensajes.mjs';
 
-const MARCA_CONFIRMAR = 'Esto es lo que voy a registrar';
-const MARCA_CREADO = '✅ Pedido';
-const MARCA_CREANDO = '⏳ Creando el pedido';
+export const MARCAS = {
+  CONFIRMAR: 'Esto es lo que voy a registrar',
+  ACTUALIZAR: 'Esto es lo que voy a actualizar',
+  PREGUNTA_PDF: '¿Genero el PDF de nuevo?',
+  CREANDO: 'Creando el pedido',
+  ACTUALIZANDO: 'Actualizando el pedido',
+};
 const REACCION_OK = 'white_check_mark';
 
+/** Quita el emoji inicial (símbolo o :shortcode:) para comparar marcas. */
+export function sinEmoji(texto = '') {
+  return String(texto).replace(/^\s*(?::[a-z0-9_+-]+:|[^\w¿*])+\s*/iu, '').trim();
+}
+const empieza = (m, marca) => sinEmoji(m?.text).startsWith(marca);
+/** "✅ Pedido *PE2011* creado" / "… actualizado" → "PE2011". */
+export function peDeMensaje(texto) {
+  const m = /^Pedido \*?([A-Z0-9-]+)\*? (creado|actualizado)/.exec(sinEmoji(texto));
+  return m ? m[1] : null;
+}
+
 export class Bot {
-  /** @param {{slack: import('./slack.mjs').Slack, api: import('./appsheet.mjs').AppSheet, ensayo?: boolean, log?: Function}} deps */
   constructor({ slack, api, ensayo = process.env.MODO_ENSAYO === '1', log = console.log, canalId = process.env.SLACK_CANAL_ID || null, esperarPdfFn = esperarPdf, descargarPdfFn = descargarPdf }) {
     this.slack = slack;
     this.api = api;
@@ -35,6 +60,10 @@ export class Bot {
   async miId() {
     if (!this.botUserId) this.botUserId = (await this.slack.llamar('auth.test')).user_id;
     return this.botUserId;
+  }
+
+  esMio(m) {
+    return Boolean(m.bot_id) || m.user === this.botUserId;
   }
 
   /** Punto de entrada: el objeto `event` del Events API. */
@@ -59,24 +88,31 @@ export class Bot {
 
     if (esRespuesta) {
       const texto = (event.text ?? '').trim().toLowerCase();
-      if (/^(no|cancelar|cancela|cancelado)\b/.test(texto)) {
+      if (/^(no|cancelar|cancela|cancelado)[\s!.]*$/.test(texto)) {
         return this.slack.responder(event.channel, raiz, '🚫 Cancelado. Si quieres registrarlo, envía el pedido en un mensaje nuevo.');
       }
-      if (/^(si|sí|ok|dale|listo|confirmo|confirmar|confirmado|crealo|créalo|crear|hazlo|de una|va)[\s!.]*$/.test(texto)) {
+      if (/^(si|sí|ok|dale|listo|confirmo|confirmar|confirmado|crealo|créalo|crear|hazlo|de una|va|genera|generalo|genéralo)[\s!.]*$/.test(texto)) {
         const hilo = await this.slack.hilo(event.channel, raiz);
-        const yo = await this.miId();
-        const ultima = [...hilo].reverse().find((m) => (m.bot_id || m.user === yo) && m.text?.startsWith(MARCA_CONFIRMAR));
-        if (!ultima) return this.slack.responder(event.channel, raiz, 'Todavía no hay un resumen que confirmar; completa primero lo que falta.');
+        const ultima = this.ultimaPregunta(hilo);
+        if (!ultima) return this.slack.responder(event.channel, raiz, 'Todavía no hay nada que confirmar; completa primero lo que falta.');
         return this.confirmar({ channel: event.channel, raiz, user: event.user, tsConfirmacion: ultima.ts, hilo });
       }
     } else {
       if (!pareceUnPedido(event.text)) return; // charla normal en el canal
       await this.slack.reaccionar(event.channel, event.ts, 'eyes');
     }
-    const v = await this.evaluarHilo(event.channel, raiz);
+    const { v, creado } = await this.evaluarHilo(event.channel, raiz);
     if (!v) return;
-    const texto = v.estado === 'ok' ? mensajeConfirmar(v) : v.estado === 'faltan' ? mensajeFaltan(v) : mensajeError(v);
+    let texto;
+    if (v.estado === 'faltan') texto = mensajeFaltan(v);
+    else if (v.estado === 'error') texto = mensajeError(v);
+    else texto = creado ? mensajeConfirmarCambio(v, creado.pe) : mensajeConfirmar(v);
     await this.slack.responder(event.channel, raiz, texto);
+  }
+
+  /** El último mensaje del bot que espera un ✅ (resumen para crear, resumen para actualizar o pregunta del PDF). */
+  ultimaPregunta(hilo) {
+    return [...hilo].reverse().find((m) => this.esMio(m) && (empieza(m, MARCAS.CONFIRMAR) || empieza(m, MARCAS.ACTUALIZAR) || empieza(m, MARCAS.PREGUNTA_PDF)));
   }
 
   async reaccion(event) {
@@ -86,46 +122,47 @@ export class Bot {
     if (!channel || !ts) return;
     if (this.canalId && channel !== this.canalId) return;
 
-    // ¿La reacción es sobre el mensaje de confirmación del bot?
     const mensajes = await this.slack.hilo(channel, ts).catch(() => []);
     const objetivo = mensajes.find((m) => m.ts === ts);
-    if (!objetivo || !objetivo.text?.startsWith(MARCA_CONFIRMAR)) return;
+    if (!objetivo) return;
+    if (!(empieza(objetivo, MARCAS.CONFIRMAR) || empieza(objetivo, MARCAS.ACTUALIZAR) || empieza(objetivo, MARCAS.PREGUNTA_PDF))) return;
     const raiz = objetivo.thread_ts ?? ts;
     return this.confirmar({ channel, raiz, user: event.user, tsConfirmacion: ts });
   }
 
-  /** Crea el pedido tras un ✅ (reacción o "si" en el hilo) sobre el último resumen. */
+  /** Un ✅ (reacción o "si") sobre la última pregunta del bot: crear, actualizar o regenerar el PDF. */
   async confirmar({ channel, raiz, user, tsConfirmacion, hilo = null }) {
-    const ts = tsConfirmacion;
     const quien = await this.slack.usuario(user);
     if (!vendedorDe(quien.nombre) && !vendedorDe(quien.correo)) {
       return this.slack.responder(channel, raiz, `Solo un asesor registrado puede confirmar (reaccionó ${quien.nombre}).`);
     }
-
+    await this.miId();
     hilo ??= await this.slack.hilo(channel, raiz);
-    const mios = hilo.filter((m) => m.bot_id || m.user === this.botUserId);
-    if (mios.some((m) => m.text?.startsWith(MARCA_CREADO) || m.text?.startsWith(MARCA_CREANDO))) return;
-    // Solo vale el ✅ sobre la ÚLTIMA confirmación (si el asesor corrigió datos, hay una más nueva)
-    const ultimaConfirmacion = [...mios].reverse().find((m) => m.text?.startsWith(MARCA_CONFIRMAR));
-    if (ultimaConfirmacion && ultimaConfirmacion.ts !== ts) {
-      return this.slack.responder(channel, raiz, 'Ese resumen ya no es el último. Reacciona ✅ al resumen más reciente.');
+    const ultima = this.ultimaPregunta(hilo);
+    if (!ultima || ultima.ts !== tsConfirmacion) {
+      return this.slack.responder(channel, raiz, 'Ese mensaje ya no es el último. Reacciona ✅ al resumen o pregunta más reciente.');
     }
+    // ¿Ya hay algo en marcha después de esa pregunta? (doble ✅, reintento de Slack)
+    const despues = hilo.filter((m) => this.esMio(m) && Number(m.ts) > Number(ultima.ts));
+    if (despues.some((m) => empieza(m, MARCAS.CREANDO) || empieza(m, MARCAS.ACTUALIZANDO) || peDeMensaje(m.text) || empieza(m, 'PDF del pedido') || empieza(m, 'Generando el PDF'))) return;
 
-    await this.slack.responder(channel, raiz, `${MARCA_CREANDO}…`);
-    const v = await this.evaluarHilo(channel, raiz, hilo);
+    if (empieza(ultima, MARCAS.PREGUNTA_PDF)) {
+      const pe = /\*([A-Z0-9-]+)\*/.exec(sinEmoji(ultima.text))?.[1];
+      return this.regenerarPdf(channel, raiz, pe, hilo);
+    }
+    if (empieza(ultima, MARCAS.ACTUALIZAR)) return this.actualizar(channel, raiz, hilo);
+    return this.crear(channel, raiz, hilo);
+  }
+
+  async crear(channel, raiz, hilo) {
+    await this.slack.responder(channel, raiz, `⏳ ${MARCAS.CREANDO}…`);
+    const { v, creado } = await this.evaluarHilo(channel, raiz, hilo);
+    if (creado) return this.slack.responder(channel, raiz, `Este hilo ya tiene el pedido *${creado.pe}*. Para cambiarlo, responde aquí con el cambio.`);
     if (!v || v.estado !== 'ok') {
-      return this.slack.responder(channel, raiz, '❌ Al revisar de nuevo el pedido ya no está completo. ' + (v ? (v.errores.concat(v.faltantes).join(' · ')) : ''));
+      return this.slack.responder(channel, raiz, '❌ Al revisar de nuevo el pedido ya no está completo. ' + (v ? v.errores.concat(v.faltantes).join(' · ') : ''));
     }
     const armado = armar(v.pedido);
-    if (this.ensayo) {
-      this.api.enviado = [];
-      const r = await registrarEnAppSheet(this.api, { ...armado, pedido: { ...armado.pedido } }).catch((e) => ({ error: e.message }));
-      const resumen = this.api.enviado.map((e) => `• ${e.Action} en ${e.tabla}: ${e.Rows.length} fila(s)` + (e.tabla === 'PEDIDOS' && e.Action === 'Add' ? ` → ${e.Rows[0].PE} (KEY ${e.Rows[0].KEY})` : '')).join('\n');
-      const filas = JSON.stringify(this.api.enviado.map((e) => ({ tabla: e.tabla, accion: e.Action, filas: e.Rows })), null, 1);
-      return this.slack.responder(channel, raiz,
-        `🧪 *MODO ENSAYO*: no escribí nada en AppSheet. Habría hecho:\n${resumen}` + (r?.error ? `\n❌ ${r.error}` : '') +
-        `\n\`\`\`${filas.slice(0, 2500)}${filas.length > 2500 ? '\n…' : ''}\`\`\``);
-    }
+    if (this.ensayo) return this.ensayar(channel, raiz, () => registrarEnAppSheet(this.api, { ...armado, pedido: { ...armado.pedido } }));
     let r;
     try {
       r = await registrarEnAppSheet(this.api, armado);
@@ -135,11 +172,55 @@ export class Bot {
       this.log('ERROR registrando', e);
       return this.slack.responder(channel, raiz, mensajeFallo(e.message));
     }
-    await this.publicarPdf(channel, raiz, r);
+    await this.publicarPdf(channel, raiz, { ...r, cliente: v.pedido.cliente.nombre });
+  }
+
+  async actualizar(channel, raiz, hilo) {
+    await this.slack.responder(channel, raiz, `⏳ ${MARCAS.ACTUALIZANDO}…`);
+    const { v, creado } = await this.evaluarHilo(channel, raiz, hilo);
+    if (!creado) return this.slack.responder(channel, raiz, 'No encuentro en este hilo un pedido creado que actualizar.');
+    if (!v || v.estado !== 'ok') {
+      return this.slack.responder(channel, raiz, '❌ Al revisar de nuevo el pedido ya no está completo. ' + (v ? v.errores.concat(v.faltantes).join(' · ') : ''));
+    }
+    const armado = armar(v.pedido);
+    if (this.ensayo) return this.ensayar(channel, raiz, () => actualizarEnAppSheet(this.api, creado.pe, armado));
+    try {
+      const r = await actualizarEnAppSheet(this.api, creado.pe, armado);
+      await this.slack.responder(channel, raiz, mensajeActualizado(v.pedido, r));
+      await this.slack.responder(channel, raiz, mensajePreguntaPdf(r.pe));
+    } catch (e) {
+      this.log('ERROR actualizando', e);
+      await this.slack.responder(channel, raiz, mensajeFallo(e.message));
+    }
+  }
+
+  async regenerarPdf(channel, raiz, pe, hilo) {
+    if (!pe) return;
+    await this.slack.responder(channel, raiz, `⏳ Generando el PDF de *${pe}*…`);
+    const fila = await pedidoPorPe(this.api, pe);
+    if (!fila) return this.slack.responder(channel, raiz, `No encontré el pedido ${pe} en la app.`);
+    if (this.ensayo) return this.slack.responder(channel, raiz, `🧪 *MODO ENSAYO*: habría puesto ESTATUS = EN PROCESO en ${pe} para generar el PDF.`);
+    let yaListo = null;
+    try {
+      yaListo = await dispararPdf(this.api, fila.KEY);
+    } catch (e) {
+      this.log('No se pudo disparar el PDF', e.message);
+    }
+    await this.publicarPdf(channel, raiz, { key: fila.KEY, pe, pdf: yaListo, cliente: fila.CLIENTE });
+  }
+
+  async ensayar(channel, raiz, fn) {
+    this.api.enviado = [];
+    const r = await fn().catch((e) => ({ error: e.message }));
+    const resumen = this.api.enviado.map((e) => `• ${e.Action} en ${e.tabla}: ${e.Rows.length} fila(s)` + (e.tabla === 'PEDIDOS' && e.Action === 'Add' ? ` → ${e.Rows[0].PE} (KEY ${e.Rows[0].KEY})` : '')).join('\n');
+    const filas = JSON.stringify(this.api.enviado.map((e) => ({ tabla: e.tabla, accion: e.Action, filas: e.Rows })), null, 1);
+    return this.slack.responder(channel, raiz,
+      `🧪 *MODO ENSAYO*: no escribí nada en AppSheet. Habría hecho:\n${resumen}` + (r?.error ? `\n❌ ${r.error}` : '') +
+      `\n\`\`\`${filas.slice(0, 2500)}${filas.length > 2500 ? '\n…' : ''}\`\`\``);
   }
 
   /** Espera el PDF que genera AppSheet y lo sube al hilo (o publica el enlace si falta el permiso files:write). */
-  async publicarPdf(channel, raiz, { key, pe, pdf: yaListo = null }) {
+  async publicarPdf(channel, raiz, { key, pe, pdf: yaListo = null, cliente = '' }) {
     try {
       const pdf = await this.esperarPdfFn(this.api, key, { yaListo });
       if (!pdf) return this.slack.responder(channel, raiz, mensajePdfNoListo(pe));
@@ -151,7 +232,8 @@ export class Bot {
       }
       if (buffer) {
         try {
-          await this.slack.subirArchivo({ channel, thread_ts: raiz, nombre: `${pe}.pdf`, buffer, titulo: `Pedido ${pe}`, comentario: mensajePdfListo(pe) });
+          const nombre = nombreArchivoPdf(pe, cliente);
+          await this.slack.subirArchivo({ channel, thread_ts: raiz, nombre, buffer, titulo: nombre.replace(/\.pdf$/, ''), comentario: mensajePdfListo(pe) });
           return;
         } catch (e) {
           this.log('No se pudo subir el PDF a Slack', e.message);
@@ -165,25 +247,33 @@ export class Bot {
     }
   }
 
-  /** Relee el hilo, junta el texto de los asesores y devuelve la validación (o null si ya se creó). */
+  /**
+   * Relee el hilo, junta el texto de los asesores y devuelve { v, creado }:
+   * v es la validación; creado es { pe } si en el hilo ya hay un pedido creado.
+   */
   async evaluarHilo(channel, raiz, hilo = null) {
     hilo ??= await this.slack.hilo(channel, raiz);
     const yo = await this.miId();
-    const mios = hilo.filter((m) => m.bot_id || m.user === yo);
-    if (mios.some((m) => m.text?.startsWith(MARCA_CREADO))) {
-      await this.slack.responder(channel, raiz, 'Este pedido ya fue creado. Para otro pedido, envía un mensaje nuevo.');
-      return null;
-    }
-    const humanos = hilo.filter((m) => !m.bot_id && m.user !== yo && !m.subtype);
+    const mios = hilo.filter((m) => this.esMio(m));
+    const pe = mios.map((m) => peDeMensaje(m.text)).filter(Boolean).at(-1) ?? null;
+    const creado = pe ? { pe } : null;
+    const humanos = hilo.filter((m) => !this.esMio(m) && !m.subtype);
     const original = humanos.find((m) => m.ts === raiz) ?? humanos[0];
-    if (!original) return null;
+    if (!original) return { v: null, creado };
     const texto = textoDelHilo(hilo, humanos, yo);
     const autor = await this.slack.usuario(original.user);
     const remitente = vendedorDe(autor.nombre) ? autor.nombre : autor.correo;
 
     const [catalogo, { pedido: extraido }] = await Promise.all([cargarCatalogo(this.api), extraer(texto)]);
-    return validar(extraido, catalogo, remitente);
+    return { v: validar(extraido, catalogo, remitente), creado };
   }
+}
+
+/** PE2011_NOMBRE CLIENTE_2026-10-05 02-28-15.pdf */
+export function nombreArchivoPdf(pe, cliente = '', ahora = new Date()) {
+  const nombre = String(cliente ?? '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const fecha = fechaIso(true, ahora).replace(/:/g, '-');
+  return `${pe}${nombre ? '_' + nombre : ''}_${fecha}.pdf`;
 }
 
 /** Un mensaje raíz se trata como pedido si trae una referencia con cantidad o la palabra PEDIDO. */
@@ -196,20 +286,22 @@ export function pareceUnPedido(texto = '') {
  * (así la IA sabe que lo de después corrige lo de antes). Si el bot acababa de
  * preguntar la cantidad de UNA referencia y el asesor contesta con un número suelto
  * ("25" o "25, pago en bodega…"), ese número se convierte en "REF 25 und".
+ * Las respuestas que son solo "si"/"no" no aportan datos y se omiten.
  */
 export function textoDelHilo(hilo, humanos, yo) {
   const partes = [];
-  let pendiente = null; // referencia cuya cantidad preguntó el bot en su último mensaje
+  let pendiente = null;
   let n = 0;
   for (const m of hilo) {
-    const esBot = m.bot_id || m.user === yo;
+    const esBot = Boolean(m.bot_id) || m.user === yo;
     if (esBot) {
       const refs = [...(m.text ?? '').matchAll(/•\s*\*?([A-Z0-9-]{3,10})\*?\s+se vende en paquetes de/g)].map((x) => x[1]);
-      pendiente = m.text?.startsWith('⚠️') && refs.length === 1 ? refs[0] : null;
+      pendiente = /Me falta informaci/.test(m.text ?? '') && refs.length === 1 ? refs[0] : null;
       continue;
     }
     if (!humanos.includes(m)) continue;
     let t = m.text ?? '';
+    if (n > 0 && /^(si|sí|ok|dale|listo|no|cancelar|confirmo|confirmar|genera|generalo|genéralo)[\s!.]*$/i.test(t.trim())) continue;
     if (n > 0 && pendiente) {
       const num = /^\s*(\d{1,6})\s*(?:und|unds|unid|unidades|u\b)?\s*(?:[,.;]|$)/i.exec(t);
       if (num) t = `${pendiente} ${num[1]} und` + t.slice(num[0].length).replace(/^\s*[,.;]?/, ', ');

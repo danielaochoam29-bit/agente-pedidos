@@ -53,3 +53,17 @@ export function mensajePdfListo(pe) {
 export function mensajePdfNoListo(pe) {
   return `⚠️ El pedido *${pe}* quedó creado, pero AppSheet no terminó de generar el PDF. Ábrelo en la app y pulsa *Generar PDF*.`;
 }
+
+export function mensajeConfirmarCambio(v, pe) {
+  const avisos = v.avisos.length ? `\n\n⚠️ ${v.avisos.join('\n⚠️ ')}` : '';
+  return `Esto es lo que voy a actualizar en el pedido *${pe}*:\n\n${resumenPedido(v.pedido)}${avisos}\n\n¿Lo actualizo? Reacciona con ✅ a este mensaje (o responde *no*).`;
+}
+
+export function mensajeActualizado(p, { pe }) {
+  return `✅ Pedido *${pe}* actualizado\n` +
+    `${p.items.length} referencia(s) · ${p.unidades} und · Subtotal ${cop(p.subtotal)} · Envío ${p.valorEnvio ? cop(p.valorEnvio) : 'por confirmar'}`;
+}
+
+export function mensajePreguntaPdf(pe) {
+  return `¿Genero el PDF de nuevo? Pedido *${pe}*. Reacciona con ✅ a este mensaje o responde *si*.`;
+}
