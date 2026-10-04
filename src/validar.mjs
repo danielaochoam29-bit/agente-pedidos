@@ -98,6 +98,10 @@ export function validar(extraido, catalogo, remitente) {
       continue;
     }
     const cantidad = Number(it.cantidad);
+    if (it.cantidad == null) {
+      faltantes.push(`Cantidad en unidades de ${p['ITEM NRO']} (ej. "${p['ITEM NRO']}: 25 und")`);
+      continue;
+    }
     if (!Number.isInteger(cantidad) || cantidad <= 0) {
       errores.push(`${it.ref}: cantidad inválida (${it.cantidad}).`);
       continue;
