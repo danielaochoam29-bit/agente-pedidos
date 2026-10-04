@@ -42,8 +42,8 @@ export function mensajeCreado(p, { pe, key }) {
     `Vendedor: ${p.vendedor} · Estado: EN CONSTRUCCIÓN · Pago: PENDIENTE\n⏳ Generando el PDF…`;
 }
 
-export function mensajeFallo(motivo) {
-  return `❌ Intenté crear el pedido pero algo falló:\n\`${motivo}\`\nRevisa en la app si quedó algo a medias (cliente o pedido sin detalles) antes de volver a enviarlo.`;
+export function mensajeFallo(motivo, accion = 'crear') {
+  return `❌ Intenté ${accion} el pedido pero algo falló:\n\`${motivo}\`\nRevisa en la app si quedó algo a medias (cliente o pedido sin detalles) antes de volver a enviarlo.`;
 }
 
 export function mensajePdfListo(pe) {

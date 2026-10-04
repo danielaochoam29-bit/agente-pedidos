@@ -122,6 +122,9 @@ test('flujo completo: pedido → faltan → respuesta en hilo → confirmar → 
   await bot.manejar({ type: 'reaction_added', reaction: 'white_check_mark', user: JULIAN, item: { channel: 'C1', ts: cambio.ts } });
   const acciones = api.enviado.slice(antesUpd).map((e) => [e.tabla, e.Action, e.Rows.length]);
   assert.deepEqual(acciones.filter((a) => a[1] !== 'Find'), [['PEDIDOS', 'Edit', 1], ['DETALLES PEDIDO', 'Delete', 2], ['DETALLES PEDIDO', 'Add', 3]]);
+  const edit = api.enviado.slice(antesUpd).find((e) => e.tabla === 'PEDIDOS' && e.Action === 'Edit').Rows[0];
+  for (const col of ['USUARIO', 'FECHA', 'ESTADO PEDIDO', 'ESTADO PAGO', 'PE', 'NUMERO CONSECUTIVO']) assert.ok(!(col in edit), `${col} no debe ir en el Edit`);
+  assert.equal(edit['DIRECCIÓN DE ENVÍO'], 'Calle 9 # 9-99');
   assert.equal(api.enviado.filter((e) => e.tabla === 'PEDIDOS' && e.Action === 'Add').length, 1); // sigue habiendo UN solo pedido
   const t2 = slack.textosBot(raiz);
   assert.match(t2.at(-2), /Pedido \*PE2010\* actualizado/);

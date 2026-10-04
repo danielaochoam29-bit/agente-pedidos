@@ -133,7 +133,9 @@ export async function actualizarEnAppSheet(api, pe, armado) {
   const fila = await pedidoPorPe(api, pe);
   if (!fila?.KEY) throw new Error(`No encontré el pedido ${pe} en la app.`);
   const key = fila.KEY;
-  const { KEY, PE, 'NUMERO CONSECUTIVO': _c, ...campos } = armado.pedido;
+  // Columnas que no se tocan al actualizar: las llaves, las que AppSheet no
+  // deja editar (USUARIO) y las que son del momento de creación (FECHA, estados).
+  const { KEY, PE, 'NUMERO CONSECUTIVO': _c, USUARIO, FECHA, 'ESTADO PEDIDO': _ep, 'ESTADO PAGO': _ea, ...campos } = armado.pedido;
   await api.llamar(TABLAS.PEDIDOS, 'Edit', [{ KEY: key, ...campos }]);
   const viejos = await detallesDe(api, key);
   if (viejos.length) await api.llamar(TABLAS.DETALLES, 'Delete', viejos.map((d) => ({ KEY: d.KEY })));

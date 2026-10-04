@@ -158,8 +158,16 @@ export function validar(extraido, catalogo, remitente) {
   // La app exige PAGO DEL ENVÍO (Enum obligatorio): si no viene, se pregunta.
   if (!pagoDelEnvio) faltantes.push('Pago del envío: *contraentrega*, *pago en bodega con cobro al cliente* o *pago en bodega sin cobro al cliente*');
 
-  const valorEnvio = extraido.valorEnvio == null ? DEFAULTS.VALOR_ENVIO : Number(extraido.valorEnvio);
-  if (extraido.valorEnvio == null) avisos.push('Valor del envío por confirmar; queda en 0.');
+  // Con CONTRAENTREGA o PAGO EN BODEGA SIN COBRO AL CLIENTE el envío no se cobra en
+  // el pedido: si el asesor pone un valor, se le pide cambiar el pago del envío.
+  const envioSinValor = pagoDelEnvio === 'CONTRAENTREGA' || pagoDelEnvio === 'PAGO EN BODEGA SIN COBRO AL CLIENTE';
+  let valorEnvio = extraido.valorEnvio == null ? DEFAULTS.VALOR_ENVIO : Number(extraido.valorEnvio);
+  if (envioSinValor && valorEnvio > 0) {
+    faltantes.push(`Cambia el pago del envío: *${pagoDelEnvio.toLowerCase()}* no permite agregar valor del envío (${cop(valorEnvio)}). Si sí se cobra, responde *pago en bodega con cobro al cliente*; si no, responde *envío 0*.`);
+    valorEnvio = DEFAULTS.VALOR_ENVIO;
+  } else if (extraido.valorEnvio == null && !envioSinValor) {
+    avisos.push('Valor del envío por confirmar; queda en 0.');
+  }
 
   let bodega = DEFAULTS.BODEGA;
   if (extraido.bodega) {

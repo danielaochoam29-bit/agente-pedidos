@@ -182,3 +182,18 @@ test('canal Página Web: cliente de es DANIELA aunque el asesor diga otra cosa',
   assert.equal(sin.estado, 'ok', JSON.stringify(sin));
   assert.equal(sin.pedido.cliente.clienteDe, 'DANIELA');
 });
+
+test('contraentrega o sin cobro al cliente no admiten valor del envío', () => {
+  const base = 'Cliente: Cafe de Prueba\nNIT: 900.000.001\nCelular: 3009999999\nDirección: Calle nueva 5 # 6-7\n* B04B — 25 und × $1.220';
+  for (const pago of ['contraentrega', 'pago en bodega sin cobro al cliente']) {
+    const v = validar(leerMensaje(`${base}\nPago del envío: ${pago}\nValor del envío: $18.500`), cat, 'daniela ochoa');
+    assert.equal(v.estado, 'faltan', JSON.stringify(v));
+    assert.match(v.faltantes[0], /Cambia el pago del envío: \*.*\* no permite agregar valor del envío \(\$18\.500\)/);
+    assert.ok(!v.avisos.some((a) => /Valor del envío por confirmar/.test(a)));
+  }
+  const ok = validar(leerMensaje(`${base}\nPago del envío: pago en bodega con cobro al cliente\nValor del envío: $18.500`), cat, 'daniela ochoa');
+  assert.equal(ok.estado, 'ok', JSON.stringify(ok));
+  assert.equal(ok.pedido.valorEnvio, 18500);
+  const cero = validar(leerMensaje(`${base}\nPago del envío: contraentrega\nValor del envío: 0`), cat, 'daniela ochoa');
+  assert.equal(cero.estado, 'ok', JSON.stringify(cero));
+});

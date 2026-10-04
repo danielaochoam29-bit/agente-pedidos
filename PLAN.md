@@ -402,7 +402,7 @@ Esta sección **reemplaza** las propuestas de §6 y §9.3 en lo que se contradig
 | 1 | `ESTADO PEDIDO` | Siempre `EN CONSTRUCCIÓN` |
 | 2 | `ESTADO PAGO` | Siempre `PENDIENTE`. El pago lo registra después el asesor en la app o la automatización de pagos de Slack |
 | 3 | `ESTATUS` y PDF | Ver §11.2: el pedido debe quedar con el PDF generado en `DOCUMENTO` |
-| 4 | `PAGO DEL ENVÍO` | Solo lo que el asesor escriba (`CONTRAENTREGA`, `PAGO EN BODEGA CON COBRO AL CLIENTE`, `PAGO EN BODEGA SIN COBRO AL CLIENTE`). **Cambio 2026-10-05:** la app lo exige (Enum obligatorio), así que si no lo escribe el bot lo **pregunta en el hilo** en vez de dejarlo en blanco |
+| 4 | `PAGO DEL ENVÍO` | Solo lo que el asesor escriba (`CONTRAENTREGA`, `PAGO EN BODEGA CON COBRO AL CLIENTE`, `PAGO EN BODEGA SIN COBRO AL CLIENTE`). **Cambio 2026-10-05:** la app lo exige (Enum obligatorio), así que si no lo escribe el bot lo **pregunta en el hilo** en vez de dejarlo en blanco. **Regla 2026-10-05:** con `CONTRAENTREGA` o `PAGO EN BODEGA SIN COBRO AL CLIENTE` no se admite `VALOR DEL ENVÍO` > 0: el bot pide "cambia el pago del envío, esta opción no permite agregar valor del envío" y no registra hasta que el asesor cambie el pago o ponga envío 0 |
 | 5 | `BODEGA` | `BGA`. Solo cambia a `SAN GIL` si el asesor lo escribe |
 | 6 | `VENDEDOR` y `USUARIO` | Según quién envía el mensaje en Slack. Me das la lista "persona de Slack → VENDEDOR" (nombre como aparece en Slack o su correo; con el correo el bot los identifica solo) |
 | 7 | Cliente nuevo | **Tipo de cliente** es `FINAL` salvo que el asesor escriba que es distribuidor (2026-10-05). El asesor debe indicar **Canal** (`WhatsApp` / `Instagram` / `Página web`) y **Cliente de** (`ARQUI` / `DANIELA` / `JULIAN`); si falta alguno, el bot lo pregunta en el hilo. **Si el canal es Página Web, Cliente de es siempre DANIELA**, diga lo que diga el asesor (2026-10-05) |
@@ -561,3 +561,5 @@ Ejemplo con dos pedidos en cola:
 - El PDF se dispara poniendo ESTATUS = EN PROCESO (invocar la acción por API no la ejecuta) y se
   sube al hilo como `PE2011_NOMBRE CLIENTE_2026-10-05 02-28-15.pdf`.
 - Slack guarda los emojis como texto (`:white_check_mark:`); las marcas del bot se leen sin emoji.
+- Al actualizar, el Edit de PEDIDOS no envía `USUARIO` (AppSheet no lo deja editar), ni `FECHA`,
+  `ESTADO PEDIDO` y `ESTADO PAGO` (son del momento de creación y pueden haber cambiado en la app).

@@ -190,7 +190,7 @@ export class Bot {
       await this.slack.responder(channel, raiz, mensajePreguntaPdf(r.pe));
     } catch (e) {
       this.log('ERROR actualizando', e);
-      await this.slack.responder(channel, raiz, mensajeFallo(e.message));
+      await this.slack.responder(channel, raiz, mensajeFallo(e.message, 'actualizar'));
     }
   }
 
