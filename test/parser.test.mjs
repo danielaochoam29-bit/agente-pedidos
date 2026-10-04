@@ -81,3 +81,20 @@ test('pago del envío en texto libre: la última mención manda', () => {
   assert.equal(r.pagoDelEnvio, null);
   assert.equal(r.pagoContraentrega, 'NO');
 });
+
+test('una respuesta del hilo sin números no se toma como nombre; contraentrega en texto libre', () => {
+  const r = leerMensaje('=== Mensaje original ===\nCliente Juan monsalve prueba CC 1.789.098 dirección Calle 32 24-45 Santa Rosa b01b 100 und pago contraentrega pago del envío en bodega con cobro al cliente valor 22000\n\n=== Respuesta del asesor 1 (corrige o completa lo anterior) ===\nMercancía contraentrega no');
+  assert.notEqual(r.cliente.nombre, 'Mercancía contraentrega no');
+  assert.equal(r.pagoContraentrega, 'NO');
+  assert.equal(leerMensaje('b01b 100 und pago contraentrega').pagoContraentrega, 'SI');
+  assert.equal(leerMensaje('Pago contraentrega: NO').pagoContraentrega, 'NO');
+});
+
+test('la IA corrige un nombre adivinado por las reglas', async () => {
+  const { combinar } = await import('../src/extraer.mjs');
+  const reglas = leerMensaje('Buenas tardes equipo\n3001234567\n* B01T — 25 und');
+  assert.equal(reglas.cliente.nombre, 'Buenas tardes equipo');
+  assert.ok(reglas.adivinados.includes('nombre'));
+  const r = combinar(reglas, { cliente: { nombre: 'Pepe Pérez', nit: '', celular: '3001234567', direccion: '', ciudad: '', tipo: '', canal: '', clienteDe: '', marca: '' }, items: [] });
+  assert.equal(r.cliente.nombre, 'Pepe Pérez');
+});

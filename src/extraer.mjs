@@ -132,7 +132,9 @@ export function combinar(reglas, ia) {
       .map((i) => ({ ref: String(i.ref).toUpperCase().trim(), cantidad: numero(i.cantidad), precio: val(i.precio) == null ? null : numero(i.precio) }));
   }
   for (const k of Object.keys(vacio().cliente)) {
-    if (r.cliente[k] == null && val(ia?.cliente?.[k]) != null) r.cliente[k] = String(ia.cliente[k]).trim();
+    const deIA = val(ia?.cliente?.[k]) == null ? null : String(ia.cliente[k]).trim();
+    // La IA rellena lo que falta y corrige lo que las reglas solo adivinaron (p. ej. un nombre tomado de una línea suelta).
+    if (deIA != null && (r.cliente[k] == null || r.adivinados?.includes(k))) r.cliente[k] = deIA;
   }
   r.cliente.nit = r.cliente.nit ? digitos(r.cliente.nit) : null;
   r.cliente.celular = r.cliente.celular ? celular(r.cliente.celular) : null;

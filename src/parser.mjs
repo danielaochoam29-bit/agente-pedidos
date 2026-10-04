@@ -41,6 +41,7 @@ export function vacio() {
     muestras: null,
     notasDespacho: null,
     notas: null,
+    adivinados: [], // campos del cliente que se dedujeron por heurística (la IA puede corregirlos)
   };
 }
 
@@ -134,19 +135,21 @@ function adivinarCliente(r, lineas) {
     .map((l) => l.replace(/,?\s*con mucho gusto.*$/i, '').trim())
     .filter(Boolean);
 
+  const PALABRAS_CLAVE = /\b(contra ?entrega|pago|env[ií]o|flete|canal|cliente de|bodega|whatsapp|instagram|p[aá]gina web|distribuidor|final|muestras|descuento|notas?|cantidad|und|unidades|subtotal|total|cotizaci[oó]n|respuesta del asesor)\b/i;
+  const marcar = (k) => { if (!r.adivinados.includes(k)) r.adivinados.push(k); };
   for (const linea of candidatas) {
     // "C.C 1066349068", "N 3246213328", "Cel: 300…", "Nit 900…": quitar la etiqueta pegada al número.
     const l = linea.replace(/^(c\.?\s?c\.?|cc|nit|n[°º.]?|no\.?|cel(ular)?|tel(efono)?|whatsapp|wa|celular)\s*[:.]?\s*(?=[\d+(])/i, '');
     const d = digitos(l);
     const soloNumero = /^[\d\s.,'’+()-]+$/.test(l);
     if (soloNumero && !r.cliente.celular && /^(57)?3\d{9}$/.test(d)) {
-      r.cliente.celular = celular(d);
+      r.cliente.celular = celular(d); marcar('celular');
     } else if (soloNumero && !r.cliente.nit && d.length >= 6 && d.length <= 12) {
-      r.cliente.nit = d;
+      r.cliente.nit = d; marcar('nit');
     } else if (!r.cliente.direccion && PISTAS_DIRECCION.test(l) && /\d/.test(l)) {
-      r.cliente.direccion = l;
-    } else if (!r.cliente.nombre && !/\d/.test(l) && l.split(' ').length >= 2 && l.length <= 60 && !/:/.test(l)) {
-      r.cliente.nombre = l;
+      r.cliente.direccion = l; marcar('direccion');
+    } else if (!r.cliente.nombre && !/\d/.test(l) && l.split(' ').length >= 2 && l.length <= 60 && !/:/.test(l) && !PALABRAS_CLAVE.test(l)) {
+      r.cliente.nombre = l; marcar('nombre');
     }
   }
 }
@@ -187,6 +190,14 @@ export function leerMensaje(texto) {
     r.pagoDelEnvio = u === 'sincobro' ? 'PAGO EN BODEGA SIN COBRO AL CLIENTE' : u === 'concobro' ? 'PAGO EN BODEGA CON COBRO AL CLIENTE' : 'CONTRAENTREGA';
   }
 
-  adivinarCliente(r, libres);
+  const corte = libres.findIndex((l) => /^=== Respuesta/.test(l));
+  adivinarCliente(r, corte === -1 ? libres : libres.slice(0, corte));
+
+  // Mercancía contraentrega en texto libre: "pago contraentrega" = SI; "mercancía contraentrega no" = NO. La última mención manda.
+  const mc = [...texto.matchAll(/(?:pago|mercanc[ií]a)\s+contra ?entrega\s*:?\s*(si|sí|no)?\b/gi)];
+  if (mc.length) {
+    const v = (mc.at(-1)[1] ?? 'si').toLowerCase();
+    r.pagoContraentrega = v === 'no' ? 'NO' : 'SI';
+  }
   return r;
 }
