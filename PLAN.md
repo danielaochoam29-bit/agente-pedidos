@@ -447,15 +447,15 @@ Tres capas, de la más aislada a la más real:
    llamas `BD PRUEBAS BOT` (quedan los 769 clientes y el catálogo real, pero es otra hoja).
    La compartes con la cuenta de servicio. El bot tiene una variable `HOJA_ID`: en pruebas
    apunta a la copia, en producción a la original.
-3. **App de pruebas.** Para probar el PDF y las alertas (camino A de §11.2), en AppSheet se hace
-   *Copy app* marcando **"Copy data"**: te crea una app gemela apuntando a la hoja copia, con
-   los mismos bots. El bot usa el *App Id* de la copia en pruebas y el de la original en
-   producción.
+3. ~~App de pruebas.~~ **Descartado (2026-10-04):** duplicar la app es demasiado trabajo. Se
+   prueba contra la app real con el paso de confirmación ✅ y uno o dos clientes de prueba que
+   luego se borran desde la app. Mientras la empresa no está operando, no hay riesgo de mezclar
+   pedidos reales. Por la misma razón la copia de la hoja (punto 2) pasa a ser opcional.
 4. **Canal de pruebas** `#pedidos-pruebas` en Slack. El bot solo escucha el canal que tenga
    configurado.
 
-Pasar a producción = cambiar 3 variables (`HOJA_ID`, `APPSHEET_APP_ID`, `SLACK_CANAL`). Nada
-más. Y antes de hacerlo, borramos las filas de prueba de la copia o simplemente la archivamos.
+Pasar a producción = cambiar 1 variable (`SLACK_CANAL`) y borrar los pedidos y clientes de prueba
+desde la app.
 
 ### 11.4 Formato de mensaje recomendado para los asesores
 
@@ -540,3 +540,12 @@ Ejemplo con dos pedidos en cola:
 5. API key de Claude.
 6. Lista "persona de Slack (nombre o correo) → VENDEDOR".
 7. Nombre de la acción de AppSheet que pasa `ESTATUS` a `EN PROCESO`.
+
+### 11.7 Aprobación y datos recibidos (2026-10-04)
+
+- **Plan aprobado.**
+- Acción de AppSheet para el PDF: **Generar PDF**, en la tabla PEDIDOS.
+- Mapa de asesores: JULIAN RODRIGUEZ → JULIAN · Arqui Sandoval → ARQUI · Daniela Ochoa → DANIELA.
+- API key de Claude recibida por chat (no se guarda en el repo; va como secreto del servidor; se
+  recomienda rotarla cuando el bot esté en marcha).
+- Guía de configuración para AppSheet, Slack y Google: [`GUIA-CONFIGURACION.md`](GUIA-CONFIGURACION.md).
