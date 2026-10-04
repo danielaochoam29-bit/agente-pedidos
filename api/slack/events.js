@@ -31,7 +31,24 @@ function elBot() {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'GET') return res.status(200).send('agente-crea-pedidos ok');
+  if (req.method === 'GET') {
+    // Diagnóstico: /api/slack/events?diag=<primeros 8 caracteres del signing secret>
+    const diag = new URL(req.url, 'http://x').searchParams.get('diag');
+    if (diag && diag === (process.env.SLACK_SIGNING_SECRET ?? '').slice(0, 8)) {
+      const api = new AppSheet({ ensayo: false });
+      const out = { appId: (process.env.APPSHEET_APP_ID ?? '').slice(0, 8), keyLen: (process.env.APPSHEET_ACCESS_KEY ?? '').length, ensayo: process.env.MODO_ENSAYO, ia: Boolean(process.env.ANTHROPIC_API_KEY) };
+      try {
+        const url = `https://api.appsheet.com/api/v2/apps/${process.env.APPSHEET_APP_ID}/tables/MUNICIPIOS/Action`;
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ApplicationAccessKey: process.env.APPSHEET_ACCESS_KEY }, body: JSON.stringify({ Action: 'Find', Properties: { Locale: 'es-CO' }, Rows: [] }) });
+        const texto = await r.text();
+        out.find = { status: r.status, length: texto.length, inicio: texto.slice(0, 300) };
+      } catch (e) {
+        out.find = { error: e.message };
+      }
+      return res.status(200).json(out);
+    }
+    return res.status(200).send('agente-crea-pedidos ok');
+  }
   if (req.method !== 'POST') return res.status(405).end();
 
   const cuerpo = await leerCuerpo(req);
