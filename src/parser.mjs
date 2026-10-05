@@ -89,7 +89,24 @@ const SOLO_CANT = new RegExp(`(\\d[\\d.,]*)\\s*${UNIDAD}\\b`, 'i');
  * Extrae [{ref, cantidad, precio}] de todo el texto. Una referencia puede
  * traer cantidad y precio en la misma línea o en la siguiente.
  */
+/**
+ * Normaliza el texto antes de leerlo:
+ * - una viñeta a mitad de línea ("…, * B04P — …") pasa a línea nueva;
+ * - "B04P200" (referencia pegada a la cantidad) pasa a "B04P 200 und".
+ *   Ninguna referencia real termina en letras seguidas de dígitos, así que no hay confusión.
+ */
+export function normalizarTexto(texto) {
+  const REF_ITEM = `[A-Z]{1,4}\\d{1,4}[A-Z0-9-]{0,5}\\s*(?:[—–:·|x×-]|\\d[\\d.,]*\\s*${UNIDAD}\\b)`;
+  return String(texto ?? '')
+    .replace(/(?<![\w-])([A-Z]{1,4}\d{1,4}[A-Z]{1,2})(\d{1,4})(?![\w-])/gi, (m, ref, cant) => `${ref} ${cant} und`)
+    // viñeta a mitad de línea: "…, * B04P — …"
+    .replace(/[ \t]*,?[ \t]+(?=[*•]\s*\*?[A-Z]{1,4}\d{1,4}[A-Z0-9-]{0,5}\b)/gi, '\n')
+    // varias referencias en una línea: "B04P 200 und, B03P 200 und" / "b04p 200 und y b03p 150 und"
+    .replace(new RegExp(`[ \\t]*,?[ \\t]+(?:y[ \\t]+)?(?=\\*?${REF_ITEM})`, 'gi'), '\n');
+}
+
 export function leerItems(texto) {
+  texto = normalizarTexto(texto);
   const lineas = texto.split(/\r?\n/);
   const items = [];
   for (let i = 0; i < lineas.length; i++) {
@@ -144,9 +161,28 @@ function adivinarCliente(r, lineas) {
     .map((l) => l.replace(/,?\s*con mucho gusto.*$/i, '').trim())
     .filter(Boolean);
 
+  // "Nombre Apellido, 1022324971, 3043755106, Bogota calle 2g # 41 37": una sola línea con todo separado por comas.
+  const segmentos = [];
+  for (const linea of candidatas) {
+    if (!linea.includes(',')) { segmentos.push(linea); continue; }
+    const partes = linea.split(',').map((x) => x.trim()).filter(Boolean);
+    let dir = null;
+    let nombreVisto = Boolean(r.cliente.nombre) || segmentos.some((x) => !/\d/.test(x) && x.split(' ').length >= 2);
+    for (const parte of partes) {
+      const soloLetras = /^[A-Za-zÁÉÍÓÚáéíóúñÑ ]+$/.test(parte);
+      // Lo que sigue a la dirección se le pega si también parece dirección, trae números o es el barrio/ciudad (ya hubo nombre).
+      if (dir !== null && (PISTAS_DIRECCION.test(parte) || (!/^[\d\s.'’+()-]+$/.test(parte) && !soloLetras) || (soloLetras && nombreVisto))) { dir += ', ' + parte; continue; }
+      if (soloLetras && parte.split(' ').length >= 2) nombreVisto = true;
+      if (dir !== null) { segmentos.push(dir); dir = null; }
+      if (PISTAS_DIRECCION.test(parte) && /\d/.test(parte)) { dir = parte; continue; }
+      segmentos.push(parte);
+    }
+    if (dir !== null) segmentos.push(dir);
+  }
+
   const PALABRAS_CLAVE = /\b(contra ?entrega|pago|env[ií]o|flete|canal|cliente de|bodega|whatsapp|wpp|wsp|ig|insta|instagram|p[aá]gina web|pw|distribuidor|final|muestras|descuento|notas?|cantidad|und|unidades|subtotal|total|cotizaci[oó]n|respuesta del asesor)\b/i;
   const marcar = (k) => { if (!r.adivinados.includes(k)) r.adivinados.push(k); };
-  for (const linea of candidatas) {
+  for (const linea of segmentos) {
     // "C.C 1066349068", "N 3246213328", "Cel: 300…", "Nit 900…": quitar la etiqueta pegada al número.
     const l = linea.replace(/^(c\.?\s?c\.?|cc|nit|n[°º.]?|no\.?|cel(ular)?|tel(efono)?|whatsapp|wa|celular)\s*[:.]?\s*(?=[\d+(])/i, '');
     const d = digitos(l);
@@ -168,7 +204,8 @@ function adivinarCliente(r, lineas) {
 /** Lee el mensaje completo. Nunca lanza. */
 export function leerMensaje(texto) {
   const r = vacio();
-  const lineas = String(texto ?? '').split(/\r?\n/);
+  texto = normalizarTexto(texto);
+  const lineas = texto.split(/\r?\n/);
   const libres = [];
 
   for (const linea of lineas) {

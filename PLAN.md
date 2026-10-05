@@ -564,6 +564,9 @@ Ejemplo con dos pedidos en cola:
 - El PDF se dispara poniendo ESTATUS = EN PROCESO (invocar la acción por API no la ejecuta) y se
   sube al hilo como `PE2011_NOMBRE CLIENTE_2026-10-05 02-28-15.pdf`.
 - Slack guarda los emojis como texto (`:white_check_mark:`); las marcas del bot se leen sin emoji.
+- El mensaje puede venir todo en una línea separado por comas ("Nombre, cédula, celular, ciudad dirección, * B04P — …"):
+  el bot parte la línea, y también entiende "B04P200, B03P200" (referencia pegada a la cantidad) y varias
+  referencias en una misma línea ("b04p 200 und y b03p 150 und").
 - Canal abreviado: `wpp`/`wsp` = WhatsApp, `ig`/`insta` = Instagram, `pw`/`web` = Página Web.
 - Al actualizar, el Edit de PEDIDOS no envía `USUARIO` (AppSheet no lo deja editar), ni `FECHA`,
   `ESTADO PEDIDO` y `ESTADO PAGO` (son del momento de creación y pueden haber cambiado en la app).

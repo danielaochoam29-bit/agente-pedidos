@@ -113,3 +113,20 @@ test('canal abreviado: wpp = WhatsApp, ig = Instagram, pw = Página Web', () => 
   assert.equal(r.cliente.canal, 'WhatsApp');
   assert.equal(r.cliente.nombre, 'Pepe Prueba');
 });
+
+test('todo en una línea separado por comas y viñeta a mitad de línea', () => {
+  const r = leerMensaje('Andres Prueba Paez, 1022324971-9, 3043755106, Bogota calle 2g # 41 37, * B04B — Bolsa con válvula · 500 g · 13,5 x 26 + 7,5 cm · papel\n  200 und × $1.100 = $220.000\n* B01T — Bolsa · 250 g · 13 x 20 + 7 cm\n  200 und × $1.000 = $200.000');
+  assert.equal(r.cliente.nombre, 'Andres Prueba Paez');
+  assert.equal(r.cliente.nit, '10223249719');
+  assert.equal(r.cliente.celular, '3043755106');
+  assert.equal(r.cliente.direccion, 'Bogota calle 2g # 41 37');
+  assert.deepEqual(r.items, [{ ref: 'B04B', cantidad: 200, precio: 1100 }, { ref: 'B01T', cantidad: 200, precio: 1000 }]);
+  assert.equal(leerMensaje('Pepe Perez\nCalle 32 24-45, Santa Rosa\n3001234567').cliente.direccion, 'Calle 32 24-45, Santa Rosa');
+});
+
+test('referencia pegada a la cantidad y varias referencias en una línea', () => {
+  assert.deepEqual(leerItems('B04P200, B03P200'), [{ ref: 'B04P', cantidad: 200, precio: null }, { ref: 'B03P', cantidad: 200, precio: null }]);
+  assert.deepEqual(leerItems('b04p200 y b03p 150 und'), [{ ref: 'B04P', cantidad: 200, precio: null }, { ref: 'B03P', cantidad: 150, precio: null }]);
+  assert.deepEqual(leerItems('B01T 25 und, B02P 25 und × $1.450'), [{ ref: 'B01T', cantidad: 25, precio: null }, { ref: 'B02P', cantidad: 25, precio: 1450 }]);
+  assert.deepEqual(leerItems('PFS300-P 2 und'), [{ ref: 'PFS300-P', cantidad: 2, precio: null }]);
+});
